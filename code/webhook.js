@@ -1,11 +1,7 @@
-// https://developers.google.com/apps-script/guides/triggers#onedite
-// https://developers.google.com/apps-script/reference/url-fetch/url-fetch-app
-// https://stackoverflow.com/questions/66154780/send-a-post-request-using-google-apps-script
-// https://stackoverflow.com/questions/58359417/you-do-not-have-permission-to-call-urlfetchapp-fetch
-
-function dispatch(repo_url) {
+function dispatch(repo_url, pat_url, client_payload = {}) {
   var url = repo_url.replace('github\.com', 'api.github.com/repos') + '/dispatches';
-  var pat_file = DriveApp.getFileById('1xOU3teX79HsTTljvdjfn9vUH4__iVoyy');
+  var pat_file_id = pat_url.match(/[-\w]{25,}/);
+  var pat_file = DriveApp.getFileById(pat_file_id);
   var auth = 'Bearer ' + pat_file.getBlob().getDataAsString();
 
   var headers = {
@@ -13,7 +9,8 @@ function dispatch(repo_url) {
     'Authorization': auth
   };
   var data = {
-    'event_type': 'webhook'
+    'event_type': 'webhook',
+    'client_payload': client_payload
   };
   var options = {
     'method': 'post',
@@ -24,30 +21,32 @@ function dispatch(repo_url) {
   UrlFetchApp.fetch(url, options);
 }
 
-function at_edit(e) {
-  var sheets = ['groups', 'show_columns', 'sorting', 'viewers', 'github'];
-  var sheet_now = e.range.getSheet().getName();
-  var gh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('github');
-  var enabled = gh.getRange('B2').getValue();
+function get_params(ss, sheet_name, key_idx = 0, val_idx = 1) {
+  var sheet = ss.getSheetByName(sheet_name);
+  var arr = sheet.getRange(1, 1, 2, sheet.getLastColumn()).getValues();
+  var p = {};
+  arr[key_idx].forEach((key, i) => p[key] = arr[val_idx][i]);
+  return p;
+}
 
-  if (enabled == 1 && sheets.includes(sheet_now)) {
-    var repo_url = gh.getRange('A2').getValue();
-    dispatch(repo_url);
+function at_edit(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheets = ss.getRange('triggers!A2:A').getValues().filter(String).flat();
+  var sheet_now = e.range.getSheet().getName();
+  var gh = get_params(ss, 'github');
+
+  if (gh['enabled'] == 1 && sheets.includes(sheet_now)) {
+    dispatch(gh['repo_url'], gh['pat_url']);
   }
 }
 
 function at_change(e) {
   user_now = e.user.getEmail();
-  var gh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('github');
-  var enabled = gh.getRange('B2').getValue();
-
-  Logger.log(e.authMode);
-  Logger.log(e.changeType);
-  Logger.log(user_now);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var gh = get_params(ss, 'github');
 
   // should correspond to changes made by surveycto and not via github actions
-  if (enabled == 1 && user_now == '' && e.changeType == 'INSERT_ROW') {
-    var repo_url = gh.getRange('A2').getValue();
-    dispatch(repo_url);
+  if (gh['enabled'] == 1 && user_now == '' && e.changeType == 'INSERT_ROW') {
+    dispatch(gh['repo_url'], gh['pat_url']);
   }
 }

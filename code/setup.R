@@ -128,9 +128,11 @@ get_tables_validity = function(x, dataset_id) {
     paste('The `column_label` column of the `show_columns`',
           'sheet contains duplicated values.')
   } else if (anyNA(x$show_columns[, ..group_cols])) {
-    'The `show_columns` sheet contains missing values.'
+    paste('The columns for the groups in the `show_columns` sheet',
+          'contain missing values.')
   } else if (!all(as.matrix(x$show_columns[, ..group_cols]) %in% 0:1)) {
-    'The `show_columns` sheet contains values other than 0 and 1.'
+    paste('The columns for the groups in the `show_columns` sheet',
+          'contain values other than 0 and 1.')
   } else if (!setequal(colnames(x$viewers), viewer_cols)) {
     paste('Column names of the `viewers` sheet are not',
           '"viewer_name", "viewer_email", and "group_id".')
@@ -326,7 +328,6 @@ update_views = function(auth, params) {
   cli_alert_success('Wrote tables to view files.')
 
   msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
-  msg_end = gsub()
   msg = glue('Successfully updated views based on changes to {msg_end}.')
   set_status(main_id, msg)
   cli_alert_success('Set status sheet of main file.')
@@ -343,5 +344,7 @@ get_env_output = function(
     msg, file_url, sheet = 'maintainers', colname = 'email') {
   maintainers = read_sheet(file_url, sheet)
   emails = paste(maintainers[[colname]], collapse = ', ')
+  # x = c(MESSAGE = msg, FILE_URL = file_url, EMAIL_TO = emails)
+  # r = paste(names(x), x, sep = '=', collapse = '\n')
   r = glue('MESSAGE={msg}\nFILE_URL={file_url}\nEMAIL_TO={emails}')
   return(r)}
