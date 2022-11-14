@@ -95,7 +95,6 @@ get_sorting_validity = function(sorting, dataset, dataset_id) {
 
 
 get_tables_validity = function(x, dataset_id) {
-  # dataset_id = names(x)[1L]
   cols = c('column_name', 'column_label')
   group_cols = setdiff(colnames(x$show_columns), cols)
   viewer_cols = c('viewer_name', 'viewer_email', 'group_id')
@@ -112,9 +111,6 @@ get_tables_validity = function(x, dataset_id) {
   } else if (!identical(colnames(x$show_columns)[1:2], cols)) {
     paste('The first two columns of the `show_columns` sheet',
           'are not named "column_name" and "column_label".')
-  # } else if (!setequal(colnames(x$dataset), x$show_columns$column_name)) {
-  #   glue('Values of `column_name` in the `show_columns` sheet do not match ',
-  #        'the column names of the `{dataset_id}` dataset.')
   } else if (!setequal(x$groups$group_id, group_cols)) {
     paste('Values of `group_id` of the `groups` sheet do not match the',
           'column names (from C column onward) of the `show_columns` sheet.')
@@ -136,7 +132,6 @@ get_tables_validity = function(x, dataset_id) {
   } else if (!setequal(colnames(x$viewers), viewer_cols)) {
     paste('Column names of the `viewers` sheet are not',
           '"viewer_name", "viewer_email", and "group_id".')
-    # } else if (!setequal(x$viewers$group_id, group_cols)) {
   } else if (!all(x$viewers$group_id %in% group_cols)) {
     paste('Values of `group_id` of the `viewers` sheet',
           'do not match those of the `groups` sheet.')
@@ -344,7 +339,5 @@ get_env_output = function(
     msg, file_url, sheet = 'maintainers', colname = 'email') {
   maintainers = read_sheet(file_url, sheet)
   emails = paste(maintainers[[colname]], collapse = ', ')
-  # x = c(MESSAGE = msg, FILE_URL = file_url, EMAIL_TO = emails)
-  # r = paste(names(x), x, sep = '=', collapse = '\n')
   r = glue('MESSAGE={msg}\nFILE_URL={file_url}\nEMAIL_TO={emails}')
   return(r)}
