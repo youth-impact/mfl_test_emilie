@@ -37,35 +37,7 @@ function at_change(e) {
   Logger.log(e.changeType);
   Logger.log(e.user.getEmail());
 
-  if (gh['enabled']) {
+  if (gh['enabled'] == 1) {
     dispatch(gh['repo_url'], gh['pat_url']);
   }
 }
-
-// function at_edit(e) {
-//   var ss = SpreadsheetApp.getActiveSpreadsheet();
-//   var sheets = ss.getRange('triggers!A2:A').getValues().filter(String).flat();
-//   var sheet_now = e.range.getSheet().getName();
-//   var gh = get_params(ss, 'github');
-
-//   Logger.log(sheet_now);
-
-//   if (gh['enabled'] == 1 && sheets.includes(sheet_now)) {
-//     dispatch(gh['repo_url'], gh['pat_url']);
-//   }
-// }
-
-// function at_change(e) {
-//   user_now = e.user.getEmail();
-//   var ss = SpreadsheetApp.getActiveSpreadsheet();
-//   var gh = get_params(ss, 'github');
-
-//   Logger.log(e.authMode);
-//   Logger.log(e.changeType);
-//   Logger.log(user_now);
-
-//   // should correspond to changes made by surveycto and not via github actions
-//   if (gh['enabled'] == 1 && user_now == '' && e.changeType == 'INSERT_ROW') {
-//     dispatch(gh['repo_url'], gh['pat_url']);
-//   }
-// }
