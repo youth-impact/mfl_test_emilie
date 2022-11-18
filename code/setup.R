@@ -40,8 +40,7 @@ set_dataset = function(auth, dataset_id, file_id) {
 
 
 get_tables = function(
-    file_id,
-    sheets = c('dataset', 'groups', 'show_columns', 'sorting', 'viewers')) {
+    file_id, sheets = c('groups', 'show_columns', 'sorting', 'viewers')) {
   tables = lapply(sheets, function(x) setDT(read_sheet(file_id, x)))
   names(tables) = sheets
   if (nrow(tables$groups) > 0) setorderv(tables$groups, 'group_id')
@@ -52,9 +51,9 @@ get_tables = function(
 
 
 compare_tables = function(x, y) {
-  # dataset, groups, show_columns, sorting, viewers
-  ignore_row_order = c(TRUE, TRUE, FALSE, FALSE, TRUE)
-  ignore_col_order = c(TRUE, TRUE, FALSE, TRUE, TRUE)
+  # groups, show_columns, sorting, viewers, dataset
+  ignore_row_order = c(TRUE, FALSE, FALSE, TRUE, TRUE)
+  ignore_col_order = c(TRUE, FALSE, TRUE, TRUE, TRUE)
   eq = sapply(1:length(x), function(i) {
     isTRUE(all.equal(
       x[[i]], y[[i]], check.attributes = FALSE,
@@ -138,14 +137,6 @@ get_tables_validity = function(x, dataset_id) {
   } else {
     get_sorting_validity(x$sorting, x$dataset, dataset_id)}
   return(r)}
-
-
-set_status = function(file_id, msg, sheet = 'status') {
-  status = data.table(
-    last_checked_utc = Sys.time(),
-    message = msg)
-  write_sheet(status, file_id, sheet = sheet)
-  range_autofit(file_id, sheet = sheet)}
 
 ########################################
 
@@ -290,31 +281,35 @@ update_views = function(auth, params) {
   mirror_id = as_id(params$mirror_file_url)
   cli_alert_success('Created file ids from file urls.')
 
-  # update the main file with the latest version of the dataset from surveycto
-  set_dataset(auth, params$dataset_id, main_id)
-  cli_alert_success('Updated dataset sheet in main file.')
-
-  # get the current and previous versions of relevant tables
+  # get previous and current versions of tables
   tables_old = get_tables(mirror_id)
   cli_alert_success('Fetched tables from mirror file.')
   tables_new = get_tables(main_id)
   cli_alert_success('Fetched tables from main file.')
 
+  # get previous and current versions of dataset
+  tables_old$dataset = setDT(read_sheet(mirror_id, 'dataset'))
+  cli_alert_success('Fetched old dataset from mirror file.')
+
+  # get current version of dataset
+  set_dataset(auth, params$dataset_id, mirror_id)
+  tables_new$dataset = setDT(read_sheet(mirror_id, 'dataset'))
+  cli_alert_success('Fetched new dataset from SurveyCTO via mirror file.')
+
   # check validity of tables
   msg = get_tables_validity(tables_new, params$dataset_id)
   cli_alert_success('Checked validity of tables.')
   if (msg != 0) {
-    set_status(main_id, msg)
-    cli_alert_success('Set status sheet of main file.')
+    cli_alert_danger(msg)
     return(msg)}
 
   # check whether anything has changed (ignores fill color)
   tables_eq = compare_tables(tables_new, tables_old)
   cli_alert_success('Compared main and mirror tables.')
   if (all(tables_eq)) {
-    set_status(main_id, 'No updates necessary.')
-    cli_alert_success('Set status sheet of main file.')
-    return(0)}
+    msg = 'No updates necessary.'
+    cli_alert_success(msg)
+    return(msg)}
 
   # update the views
   bg = get_background(main_id, 'show_columns', 'A2:A')
@@ -326,8 +321,6 @@ update_views = function(auth, params) {
 
   msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
   msg = glue('Successfully updated views based on changes to {msg_end}.')
-  set_status(main_id, msg)
-  cli_alert_success('Set status sheet of main file.')
 
   # update the mirror file
   r = lapply(names(tables_new)[!tables_eq], function(i) {
