@@ -307,9 +307,8 @@ update_views = function(auth, params) {
   tables_eq = compare_tables(tables_new, tables_old)
   cli_alert_success('Compared main and mirror tables.')
   if (all(tables_eq)) {
-    msg = 'No updates necessary.'
-    cli_alert_success(msg)
-    return(msg)}
+    cli_alert_success('No updates necessary.')
+    return(0)}
 
   # update the views
   bg = get_background(main_id, 'show_columns', 'A2:A')
