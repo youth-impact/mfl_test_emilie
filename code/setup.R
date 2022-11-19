@@ -303,12 +303,9 @@ update_views = function(auth, params) {
     cli_alert_danger(msg)
     return(msg)}
 
-  # check whether anything has changed (ignores fill color)
+  # check whether anything has changed (ignores formatting)
   tables_eq = compare_tables(tables_new, tables_old)
   cli_alert_success('Compared main and mirror tables.')
-  if (all(tables_eq)) {
-    cli_alert_success('No updates necessary.')
-    return(0)}
 
   # update the views
   bg = get_background(main_id, 'show_columns', 'A2:A')
@@ -318,8 +315,12 @@ update_views = function(auth, params) {
   set_views(tables_new, bg, view_prefix)
   cli_alert_success('Wrote tables to view files.')
 
-  msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
-  msg = glue('Successfully updated views based on changes to {msg_end}.')
+  if (all(tables_eq)) {
+    msg = 'Successfully updated views, although no changes detected.'
+  } else {
+    msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
+    msg = glue('Successfully updated views based on changes to {msg_end}.')
+  }
 
   # update the mirror file
   r = lapply(names(tables_new)[!tables_eq], function(i) {

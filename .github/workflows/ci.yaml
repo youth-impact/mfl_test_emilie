@@ -24,7 +24,7 @@ jobs:
       - uses: r-lib/actions/setup-r-dependencies@v2
       - run: Rscript code/update_views.R >> $GITHUB_ENV
       - name: Send email
-        if: ${{ env.MESSAGE != '0' }}
+        # if: ${{ env.MESSAGE != '0' }}
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
