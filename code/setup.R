@@ -14,7 +14,8 @@ params = read_yaml(file.path(paramsDir, 'params.yaml'))
 if (Sys.getenv('GOOGLE_TOKEN') == '') {
   drive_auth()
 } else {
-  drive_auth(path = Sys.getenv('GOOGLE_TOKEN'))}
+  drive_auth(path = Sys.getenv('GOOGLE_TOKEN'))
+}
 
 gs4_auth(token = drive_token())
 
@@ -24,7 +25,8 @@ if (Sys.getenv('SCTO_AUTH') == '') {
   auth_file = file.path(paramsDir, 'scto_auth.txt')
 } else {
   auth_file = withr::local_tempfile()
-  writeLines(Sys.getenv('SCTO_AUTH'), auth_file)}
+  writeLines(Sys.getenv('SCTO_AUTH'), auth_file)
+}
 
 auth = scto_auth(auth_file)
 
@@ -34,9 +36,9 @@ set_dataset = function(auth, dataset_id, file_id) {
   d = scto_read(auth, dataset_id)
   # formdef_version could be integer64, which write_sheets can't handle
   cols = which(sapply(d, bit64::is.integer64))
-  for (col in cols) {
-    set(d, j = col, value = as.character(d[[col]]))}
-  write_sheet(d, file_id, 'dataset')}
+  for (col in cols) set(d, j = col, value = as.character(d[[col]]))
+  write_sheet(d, file_id, 'dataset')
+}
 
 
 get_tables = function(
@@ -45,9 +47,11 @@ get_tables = function(
   names(tables) = sheets
   if (nrow(tables$groups) > 0) setorderv(tables$groups, 'group_id')
   if (nrow(tables$show_columns) > 0) {
-    tables$show_columns[is.na(column_label), column_label := column_name]}
+    tables$show_columns[is.na(column_label), column_label := column_name]
+  }
   tables$viewers = unique(tables$viewers)
-  return(tables)}
+  return(tables)
+}
 
 
 compare_tables = function(x, y) {
@@ -58,9 +62,11 @@ compare_tables = function(x, y) {
     isTRUE(all.equal(
       x[[i]], y[[i]], check.attributes = FALSE,
       ignore.col.order = ignore_col_order[i],
-      ignore.row.order = ignore_row_order[i]))})
+      ignore.row.order = ignore_row_order[i]))
+  })
   names(eq) = names(x)
-  return(eq)}
+  return(eq)
+}
 
 
 get_sorting_validity = function(sorting, dataset, dataset_id) {
@@ -88,9 +94,11 @@ get_sorting_validity = function(sorting, dataset, dataset_id) {
       glue('The `sorting` sheet contains combinations of `column_name` and ',
            '`column_value` not present in the `{dataset_id}` dataset.')
     } else {
-      0}}
-
-  return(r)}
+      0
+    }
+  }
+  return(r)
+}
 
 
 get_tables_validity = function(x, dataset_id) {
@@ -135,8 +143,10 @@ get_tables_validity = function(x, dataset_id) {
     paste('Values of `group_id` of the `viewers` sheet',
           'do not match those of the `groups` sheet.')
   } else {
-    get_sorting_validity(x$sorting, x$dataset, dataset_id)}
-  return(r)}
+    get_sorting_validity(x$sorting, x$dataset, dataset_id)
+  }
+  return(r)
+}
 
 ########################################
 
@@ -147,15 +157,18 @@ drive_share_get = function(file_id) {
     email = sapply(a2, `[[`, 'emailAddress'),
     user_id = sapply(a2, `[[`, 'id'),
     role = sapply(a2, `[[`, 'role'))
-  return(a3)}
+  return(a3)
+}
 
 
 drive_share_add = function(file_id, emails, role = 'reader') {
   for (email in unique(emails)) {
     drive_share(
       file_id, role = role, type = 'user', emailAddress = email,
-      sendNotificationEmail = FALSE)}
-  invisible(drive_get(id = file_id))}
+      sendNotificationEmail = FALSE)
+  }
+  invisible(drive_get(id = file_id))
+}
 
 
 drive_share_remove = function(file_id, user_ids) {
@@ -166,8 +179,10 @@ drive_share_remove = function(file_id, user_ids) {
       method = 'DELETE',
       params = list(fileId = file_id, permissionId = user_id),
       token = drive_token())
-    res = googledrive::request_make(req)}
-  invisible(drive_get(id = file_id))}
+    res = googledrive::request_make(req)
+  }
+  invisible(drive_get(id = file_id))
+}
 
 
 get_background = function(file_id, sheet, range, nonwhite = TRUE) {
@@ -175,10 +190,12 @@ get_background = function(file_id, sheet, range, nonwhite = TRUE) {
   for (p in c('red', 'green', 'blue')) {
     y = lapply(bg$cell, function(z) z$effectiveFormat$backgroundColor[[p]])
     y = sapply(y, function(z) if (is.null(z)) 0 else z)
-    set(bg, j = p, value = y)}
+    set(bg, j = p, value = y)
+  }
   bg[, cell := NULL][]
   if (nonwhite) bg = bg[!(red == 1 & green == 1 & blue == 1)]
-  return(bg)}
+  return(bg)
+}
 
 ########################################
 
@@ -211,7 +228,8 @@ set_background = function(file_id, background) {
     'sheets.spreadsheets.batchUpdate', list(spreadsheetId = file_id))
   req$body = bod
   res = googlesheets4::request_make(req)
-  invisible(res)}
+  invisible(res)
+}
 
 ########################################
 
@@ -223,19 +241,22 @@ sort_dataset = function(d, sorting) {
   for (col in cols_tmp) {
     levs_tmp = sorting[column_name == col]$column_value
     levs = c(levs_tmp, setdiff(unique(d[[col]]), levs_tmp))
-    d[, y := factor(y, levs), env = list(y = col)]}
+    d[, y := factor(y, levs), env = list(y = col)]
+  }
 
   v = sorting[
     , .(ord = 1 - 2 * any(column_value == '*descending*')),
     by = column_name]
   setorderv(d, v$column_name, v$ord)
-  return(d)}
+  return(d)
+}
 
 
 get_view_prefix = function(file_id) {
   r = drive_get(file_id)$name
   r = gsub('main$', 'view', r)
-  return(r)}
+  return(r)
+}
 
 
 set_views = function(x, bg, prefix) {
@@ -270,9 +291,11 @@ set_views = function(x, bg, prefix) {
     viewers_del = viewers_old[!viewers_now, on = c('email' = 'viewer_email')]
 
     drive_share_add(file_id, viewers_add$viewer_email)
-    drive_share_remove(file_id, viewers_del$user_id)}
+    drive_share_remove(file_id, viewers_del$user_id)
+  }
 
-  invisible(0)}
+  invisible(0)
+}
 
 ########################################
 
@@ -301,7 +324,8 @@ update_views = function(auth, params) {
   cli_alert_success('Checked validity of tables.')
   if (msg != 0) {
     cli_alert_danger(msg)
-    return(msg)}
+    return(msg)
+  }
 
   # check whether anything has changed (ignores formatting)
   tables_eq = compare_tables(tables_new, tables_old)
@@ -327,7 +351,8 @@ update_views = function(auth, params) {
     write_sheet(tables_new[[i]], mirror_id, i)})
   cli_alert_success('Wrote tables to mirror file.')
 
-  return(msg)}
+  return(msg)
+}
 
 
 get_env_output = function(
@@ -335,4 +360,5 @@ get_env_output = function(
   maintainers = read_sheet(file_url, sheet)
   emails = paste(maintainers[[colname]], collapse = ', ')
   r = glue('MESSAGE={msg}\nFILE_URL={file_url}\nEMAIL_TO={emails}')
-  return(r)}
+  return(r)
+}
