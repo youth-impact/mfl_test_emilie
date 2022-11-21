@@ -280,7 +280,7 @@ set_views = function(x, bg, prefix) {
 
 ########################################
 
-update_views = function(auth, params) {
+update_views = function(params) {
   main_id = as_id(params$main_file_url)
   mirror_id = as_id(params$mirror_file_url)
   cli_alert_success('Created file ids from file urls.')
