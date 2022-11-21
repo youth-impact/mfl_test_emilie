@@ -339,18 +339,19 @@ update_views = function(auth, params) {
   set_views(tables_new, bg, view_prefix)
   cli_alert_success('Wrote tables to view files.')
 
+  # update the mirror file
+  r = lapply(names(tables_new)[!tables_eq], function(i) {
+    write_sheet(tables_new[[i]], mirror_id, i)})
+  cli_alert_success('Wrote tables to mirror file.')
+
+  # make final message
   if (all(tables_eq)) {
     msg = 'Successfully updated views, although no changes detected.'
   } else {
     msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
     msg = glue('Successfully updated views based on changes to {msg_end}.')
   }
-
-  # update the mirror file
-  r = lapply(names(tables_new)[!tables_eq], function(i) {
-    write_sheet(tables_new[[i]], mirror_id, i)})
-  cli_alert_success('Wrote tables to mirror file.')
-
+  cli_alert_success(msg)
   return(msg)
 }
 
