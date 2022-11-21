@@ -30,6 +30,14 @@ get_tables = function(
     tables$show_columns[is.na(column_label), column_label := column_name]
   }
   tables$viewers = unique(tables$viewers)
+
+  d = tables$data
+  cols = colnames(d)[sapply(colnames(d), function(col) is.list(d[[col]]))]
+  for (col in cols) {
+    val = unlist(lapply(
+      d[[col]], function(v) if (is.null(v)) NA else as.character(v)))
+    set(d, j = col, value = val)
+  }
   return(tables)
 }
 
