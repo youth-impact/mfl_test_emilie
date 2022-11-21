@@ -3,7 +3,6 @@ library('data.table')
 library('glue')
 library('googledrive')
 library('googlesheets4')
-# library('rsurveycto')
 library('yaml')
 
 paramsDir = 'params'
@@ -20,26 +19,6 @@ if (Sys.getenv('GOOGLE_TOKEN') == '') {
 gs4_auth(token = drive_token())
 
 ########################################
-
-# if (Sys.getenv('SCTO_AUTH') == '') {
-#   auth_file = file.path(paramsDir, 'scto_auth.txt')
-# } else {
-#   auth_file = withr::local_tempfile()
-#   writeLines(Sys.getenv('SCTO_AUTH'), auth_file)
-# }
-#
-# auth = scto_auth(auth_file)
-
-########################################
-
-# set_dataset = function(auth, dataset_id, file_id) {
-#   d = scto_read(auth, dataset_id)
-#   # formdef_version could be integer64, which write_sheets can't handle
-#   cols = which(sapply(d, bit64::is.integer64))
-#   for (col in cols) set(d, j = col, value = as.character(d[[col]]))
-#   write_sheet(d, file_id, 'dataset')
-# }
-
 
 get_tables = function(
     file_id,
