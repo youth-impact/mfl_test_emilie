@@ -9,15 +9,12 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.1
 Imports:
-  bit64,
   cli,
   data.table,
   gargle,
   glue,
   googledrive,
   googlesheets4,
-  rsurveycto,
   yaml
 Remotes:
-  Rdatatable/data.table@*release,
-  agency-fund/rsurveycto
+  Rdatatable/data.table@*release

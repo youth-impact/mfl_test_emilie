@@ -3,7 +3,7 @@ library('data.table')
 library('glue')
 library('googledrive')
 library('googlesheets4')
-library('rsurveycto')
+# library('rsurveycto')
 library('yaml')
 
 paramsDir = 'params'
@@ -21,28 +21,29 @@ gs4_auth(token = drive_token())
 
 ########################################
 
-if (Sys.getenv('SCTO_AUTH') == '') {
-  auth_file = file.path(paramsDir, 'scto_auth.txt')
-} else {
-  auth_file = withr::local_tempfile()
-  writeLines(Sys.getenv('SCTO_AUTH'), auth_file)
-}
-
-auth = scto_auth(auth_file)
+# if (Sys.getenv('SCTO_AUTH') == '') {
+#   auth_file = file.path(paramsDir, 'scto_auth.txt')
+# } else {
+#   auth_file = withr::local_tempfile()
+#   writeLines(Sys.getenv('SCTO_AUTH'), auth_file)
+# }
+#
+# auth = scto_auth(auth_file)
 
 ########################################
 
-set_dataset = function(auth, dataset_id, file_id) {
-  d = scto_read(auth, dataset_id)
-  # formdef_version could be integer64, which write_sheets can't handle
-  cols = which(sapply(d, bit64::is.integer64))
-  for (col in cols) set(d, j = col, value = as.character(d[[col]]))
-  write_sheet(d, file_id, 'dataset')
-}
+# set_dataset = function(auth, dataset_id, file_id) {
+#   d = scto_read(auth, dataset_id)
+#   # formdef_version could be integer64, which write_sheets can't handle
+#   cols = which(sapply(d, bit64::is.integer64))
+#   for (col in cols) set(d, j = col, value = as.character(d[[col]]))
+#   write_sheet(d, file_id, 'dataset')
+# }
 
 
 get_tables = function(
-    file_id, sheets = c('groups', 'show_columns', 'sorting', 'viewers')) {
+    file_id,
+    sheets = c('groups', 'show_columns', 'sorting', 'viewers', 'data')) {
   tables = lapply(sheets, function(x) setDT(read_sheet(file_id, x)))
   names(tables) = sheets
   if (nrow(tables$groups) > 0) setorderv(tables$groups, 'group_id')
@@ -55,16 +56,17 @@ get_tables = function(
 
 
 compare_tables = function(x, y) {
-  # groups, show_columns, sorting, viewers, dataset
-  ignore_row_order = c(TRUE, FALSE, FALSE, TRUE, TRUE)
-  ignore_col_order = c(TRUE, FALSE, TRUE, TRUE, TRUE)
-  eq = sapply(1:length(x), function(i) {
+  d = data.table(
+    table_name = c('groups', 'show_columns', 'sorting', 'viewers', 'data'),
+    ignore_row_order = c(TRUE, FALSE, FALSE, TRUE, TRUE),
+    ignore_col_order = c(TRUE, FALSE, TRUE, TRUE, TRUE))
+  eq = sapply(seq_len(nrow(d)), function(i) {
     isTRUE(all.equal(
-      x[[i]], y[[i]], check.attributes = FALSE,
-      ignore.col.order = ignore_col_order[i],
-      ignore.row.order = ignore_row_order[i]))
+      x[[d$table_name[i]]], y[[d$table_name[i]]], check.attributes = FALSE,
+      ignore.col.order = d$ignore_col_order[i],
+      ignore.row.order = d$ignore_row_order[i]))
   })
-  names(eq) = names(x)
+  names(eq) = d$table_name
   return(eq)
 }
 
@@ -124,7 +126,7 @@ get_tables_validity = function(x, dataset_id) {
   } else if (anyDuplicated(x$show_columns$column_name) != 0) {
     paste('The `column_name` column of the `show_columns`',
           'sheet contains duplicated values.')
-  } else if (!all(x$show_columns$column_name %in% colnames(x$dataset))) {
+  } else if (!all(x$show_columns$column_name %in% colnames(x$data))) {
     glue('The `column_name` column of the `show_columns` sheet contains values',
          ' not present in the column names of the `{dataset_id}` dataset.')
   } else if (anyDuplicated(x$show_columns$column_label) != 0) {
@@ -143,7 +145,7 @@ get_tables_validity = function(x, dataset_id) {
     paste('Values of `group_id` of the `viewers` sheet',
           'do not match those of the `groups` sheet.')
   } else {
-    get_sorting_validity(x$sorting, x$dataset, dataset_id)
+    get_sorting_validity(x$sorting, x$data, dataset_id)
   }
   return(r)
 }
@@ -260,7 +262,7 @@ get_view_prefix = function(file_id) {
 
 
 set_views = function(x, bg, prefix) {
-  dataset = sort_dataset(x$dataset, x$sorting)
+  dataset = sort_dataset(x$data, x$sorting)
   bg = copy(bg)[, column_name := x$show_columns$column_name[row - 1L]]
 
   for (i in 1:nrow(x$groups)) {
@@ -306,22 +308,13 @@ update_views = function(auth, params) {
 
   # get previous and current versions of tables
   tables_old = get_tables(mirror_id)
-  cli_alert_success('Fetched tables from mirror file.')
+  cli_alert_success('Fetched old tables from mirror file.')
   tables_new = get_tables(main_id)
-  cli_alert_success('Fetched tables from main file.')
-
-  # get previous and current versions of dataset
-  tables_old$dataset = setDT(read_sheet(mirror_id, 'dataset'))
-  cli_alert_success('Fetched old dataset from mirror file.')
-
-  # get current version of dataset
-  set_dataset(auth, params$dataset_id, mirror_id)
-  tables_new$dataset = setDT(read_sheet(mirror_id, 'dataset'))
-  cli_alert_success('Fetched new dataset from SurveyCTO via mirror file.')
+  cli_alert_success('Fetched new tables from main file.')
 
   # check validity of tables
   msg = get_tables_validity(tables_new, params$dataset_id)
-  cli_alert_success('Checked validity of tables.')
+  cli_alert_success('Checked validity of new tables.')
   if (msg != 0) {
     cli_alert_danger(msg)
     return(msg)
@@ -329,7 +322,7 @@ update_views = function(auth, params) {
 
   # check whether anything has changed (ignores formatting)
   tables_eq = compare_tables(tables_new, tables_old)
-  cli_alert_success('Compared main and mirror tables.')
+  cli_alert_success('Compared old and new tables.')
 
   # update the views
   bg = get_background(main_id, 'show_columns', 'A2:A')
@@ -337,12 +330,12 @@ update_views = function(auth, params) {
   view_prefix = get_view_prefix(main_id)
   cli_alert_success('Got prefix for view files.')
   set_views(tables_new, bg, view_prefix)
-  cli_alert_success('Wrote tables to view files.')
+  cli_alert_success('Wrote new tables to view files.')
 
   # update the mirror file
   r = lapply(names(tables_new)[!tables_eq], function(i) {
     write_sheet(tables_new[[i]], mirror_id, i)})
-  cli_alert_success('Wrote tables to mirror file.')
+  cli_alert_success('Wrote new tables to mirror file.')
 
   # make final message
   if (all(tables_eq)) {
