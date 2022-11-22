@@ -134,6 +134,7 @@ get_tables_validity = function(x, dataset_id) {
   } else {
     get_sorting_validity(x$sorting, x$data, dataset_id)
   }
+  if (r != 0) r = paste('Error:', r)
   return(r)
 }
 
