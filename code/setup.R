@@ -29,7 +29,7 @@ get_tables = function(
   if (nrow(tables$show_columns) > 0) {
     tables$show_columns[is.na(column_label), column_label := column_name]
   }
-  tables$viewers = unique(tables$viewers)
+  tables$viewers = unique(na.omit(tables$viewers))
 
   d = tables$data
   cols = colnames(d)[sapply(colnames(d), function(col) is.list(d[[col]]))]
@@ -249,7 +249,7 @@ get_view_prefix = function(file_id) {
 }
 
 
-set_views = function(x, bg, prefix) {
+set_views = function(x, bg, prefix, sheet_name) {
   dataset = sort_dataset(x$data, x$sorting)
   bg = copy(bg)[, column_name := x$show_columns$column_name[row - 1L]]
 
@@ -266,8 +266,8 @@ set_views = function(x, bg, prefix) {
     dataset_now = dataset[, ..cols_now]
     setnames(dataset_now, cols_now, x$show_columns$column_label[idx])
 
-    write_sheet(dataset_now, file_id, sheet = 1)
-    range_autofit(file_id, sheet = 1)
+    write_sheet(dataset_now, file_id, sheet = sheet_name)
+    range_autofit(file_id, sheet = sheet_name)
 
     # update formatting
     bg_now = bg[column_name %in% cols_now]
@@ -317,7 +317,7 @@ update_views = function(params) {
   cli_alert_success('Got background colors.')
   view_prefix = get_view_prefix(main_id)
   cli_alert_success('Got prefix for view files.')
-  set_views(tables_new, bg, view_prefix)
+  set_views(tables_new, bg, view_prefix, params$view_sheet_name)
   cli_alert_success('Wrote new tables to view files.')
 
   # update the mirror file
