@@ -50,7 +50,7 @@ fix_dates = function(d, date_colnames) {
           env = list(col = col)]
       }
     }
-    d[, col := as.IDate(col), env = list(col = col)]
+    set(d, j = col, value = as.IDate(d[[col]]))
   }
 
   return(d[])
