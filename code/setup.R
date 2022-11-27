@@ -40,13 +40,15 @@ fix_dates = function(d, date_colnames) {
     '^\\d{4}-\\d{2}-\\d{2}$', '^\\d{2}-\\d{2}-\\d{4}$', '^\\d{2}/\\d{2}/\\d{4}$')
 
   for (col in date_colnames) {
-    d[grepl('^\\d{5}$', col),
-      col := as.integer(col) + date_zero,
-      env = list(col = col)]
-    for (i in seq_len(length(date_formats))) {
-      d[grepl(date_regs[i], col),
-        col := as.IDate(col, date_formats[i]),
+    if (is.character(d[[col]])) {
+      d[grepl('^\\d{5}$', col),
+        col := as.integer(col) + date_zero,
         env = list(col = col)]
+      for (i in seq_len(length(date_formats))) {
+        d[grepl(date_regs[i], col),
+          col := as.IDate(col, format = date_formats[i]),
+          env = list(col = col)]
+      }
     }
     d[, col := as.IDate(col), env = list(col = col)]
   }
@@ -326,7 +328,7 @@ update_views = function(params) {
   cli_alert_success('Created file ids from file urls.')
 
   # get previous and current versions of tables
-  tables_old = get_tables(mirror_id)
+  tables_old = get_tables(mirror_id, params$date_colnames)
   cli_alert_success('Fetched old tables from mirror file.')
   tables_new = get_tables(main_id, params$date_colnames)
   cli_alert_success('Fetched new tables from main file.')
