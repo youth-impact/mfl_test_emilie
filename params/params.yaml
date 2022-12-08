@@ -1,4 +1,4 @@
-main_file_url: https://docs.google.com/spreadsheets/d/1IbIMR_lV1fU-6lFG_PWSyZqwtmf8OZD9JR-gl4CTr7o
-mirror_file_url: https://docs.google.com/spreadsheets/d/1XKhly7lRqieTk9J1yq1EV6DupN0IJdthF-hhjWdpBZY
+main_file_url: https://docs.google.com/spreadsheets/d/1yeyxR85D4sg8v6TegPEuaPqVTQUvjIN2_VAzR16zJWI
+mirror_file_url: https://docs.google.com/spreadsheets/d/1VkyJJPM2fl6cWaiJW8aZ742QFPk9P1dH9AV2dnjcii8
 view_sheet_name: Cases
 date_colnames: ['status_change_date', 'update_date', 'date_joined', 'dem_dob']
