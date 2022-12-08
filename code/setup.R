@@ -93,14 +93,14 @@ compare_tables = function(x, y) {
 }
 
 
-get_sorting_validity = function(sorting, dataset, dataset_id) {
+get_sorting_validity = function(sorting, dataset) {
   sorting = copy(sorting)
   r = if (!setequal(colnames(sorting), c('column_name', 'column_value'))) {
     paste('Column names of the `sorting` sheet are not',
           '"column_name" and "column_value".')
   } else if (!all(sorting$column_name %in% colnames(dataset))) {
     glue('The `column_name` column of the `sorting` sheet contains ',
-         'values that are not column names of the `{dataset_id}` dataset.')
+         'values that are not column names of the dataset.')
   } else {
     ast = c('*ascending*', '*descending*')
     n = table(sorting[column_value %in% ast]$column_name)
@@ -115,8 +115,8 @@ get_sorting_validity = function(sorting, dataset, dataset_id) {
       paste('In the `sorting` sheet, "*ascending*" or "*descending*"',
             'is not the only `column_value` for a given `column_name`.')
     } else if (nrow(d1) > 0 && nrow(fsetdiff(d1, d2)) > 0) {
-      glue('The `sorting` sheet contains combinations of `column_name` and ',
-           '`column_value` not present in the `{dataset_id}` dataset.')
+      glue('The `sorting` sheet contains combinations of `column_name` ',
+           'and `column_value` not present in the dataset.')
     } else {
       0
     }
@@ -125,7 +125,7 @@ get_sorting_validity = function(sorting, dataset, dataset_id) {
 }
 
 
-get_tables_validity = function(x, dataset_id) {
+get_tables_validity = function(x) {
   cols = c('column_name', 'column_label')
   group_cols = setdiff(colnames(x$show_columns), cols)
   viewer_cols = c('viewer_name', 'viewer_email', 'group_id')
@@ -149,8 +149,8 @@ get_tables_validity = function(x, dataset_id) {
     paste('The `column_name` column of the `show_columns`',
           'sheet contains duplicated values.')
   } else if (!all(x$show_columns$column_name %in% colnames(x$data))) {
-    glue('The `column_name` column of the `show_columns` sheet contains values',
-         ' not present in the column names of the `{dataset_id}` dataset.')
+    glue('The `column_name` column of the `show_columns` sheet contains',
+         ' values not present in the column names of the dataset.')
   } else if (anyDuplicated(x$show_columns$column_label) != 0) {
     paste('The `column_label` column of the `show_columns`',
           'sheet contains duplicated values.')
@@ -167,7 +167,7 @@ get_tables_validity = function(x, dataset_id) {
     paste('Values of `group_id` of the `viewers` sheet',
           'do not match those of the `groups` sheet.')
   } else {
-    get_sorting_validity(x$sorting, x$data, dataset_id)
+    get_sorting_validity(x$sorting, x$data)
   }
   if (r != 0) r = paste('Error:', r)
   return(r)
@@ -336,7 +336,7 @@ update_views = function(params) {
   cli_alert_success('Fetched new tables from main file.')
 
   # check validity of tables
-  msg = get_tables_validity(tables_new, params$dataset_id)
+  msg = get_tables_validity(tables_new)
   cli_alert_success('Checked validity of new tables.')
   if (msg != 0) {
     cli_alert_danger(msg)
