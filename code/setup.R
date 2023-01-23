@@ -68,6 +68,7 @@ get_tables = function(
   }
   tables$viewers = unique(na.omit(tables$viewers))
   if (nrow(tables$data) > 0) {
+    tables$data = tables$data[!is.na(id)]
     tables$data = fix_list_cols(tables$data)
     if (!is.null(date_colnames)) {
       tables$data = fix_dates(tables$data, date_colnames)
