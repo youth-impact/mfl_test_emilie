@@ -189,9 +189,12 @@ drive_share_get = function(file_id) {
 
 drive_share_add = function(file_id, emails, role = 'reader') {
   for (email in unique(emails)) {
-    drive_share(
-      file_id, role = role, type = 'user', emailAddress = email,
-      sendNotificationEmail = FALSE)
+    res = tryCatch(
+      drive_share(
+        file_id, role = role, type = 'user', emailAddress = email,
+        sendNotificationEmail = FALSE),
+      error = function(e) e)
+    if (inherits(res, 'error')) print(res)
   }
   invisible(drive_get(id = file_id))
 }
