@@ -11,8 +11,8 @@ library('googledrive')
 library('googlesheets4')
 library('yaml')
 
-paramsDir = 'params'
-params = read_yaml(file.path(paramsDir, 'params.yaml'))
+# paramsDir = 'params'
+# params = read_yaml(file.path(paramsDir, 'params.yaml'))
 
 ########################################
 
@@ -31,7 +31,7 @@ fix_list_cols = function(d) {
   
   cols = colnames(d)[sapply(colnames(d), function(col) is.list(d[[col]]))]
   
-#                             cols)
+#                             cols)            
                             for (col in cols) {
     val = unlist(lapply(
       d[[col]], function(v) if (is.null(v)) NA else as.character(v)))
@@ -401,6 +401,15 @@ get_env_output = function(
 
 
 #### PEEWOOP
+               
+               # we broke some dynamic pathing probably so now it can't even find the config yaml, let's add it here!
+               params <- c(
+	'main_file_url'= 'https://docs.google.com/spreadsheets/d/1IbIMR_lV1fU-6lFG_PWSyZqwtmf8OZD9JR-gl4CTr7o',
+	'mirror_file_url'= 'https://docs.google.com/spreadsheets/d/1XKhly7lRqieTk9J1yq1EV6DupN0IJdthF-hhjWdpBZY',
+	'view_sheet_name'= 'Cases',
+	'date_colnames'= c('status_change_date','update_date', 'date_joined', 'dem_dob')
+		)
+               
                print(params)
                update_views(params)
 
