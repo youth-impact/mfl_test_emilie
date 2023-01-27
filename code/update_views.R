@@ -338,6 +338,8 @@ set_views = function(x, bg, prefix, sheet_name) {
 ########################################
 
 update_views = function(params) {
+  print("fn.update_views",update_views)
+  print("params$main_file_ur",params$main_file_ur)
   main_id = as_id(params$main_file_url)
   print("main_id", main_id)
   mirror_id = as_id(params$mirror_file_url)
@@ -345,6 +347,7 @@ update_views = function(params) {
   cli_alert_success('Created file ids from file urls.')
 
   # get previous and current versions of tables
+  print("params$date_colnames", params$date_colnames)
   tables_old = get_tables(mirror_id, params$date_colnames)
   cli_alert_success('Fetched old tables from mirror file.')
   tables_new = get_tables(main_id, params$date_colnames)
@@ -398,9 +401,11 @@ get_env_output = function(
 
 
 #### PEEWOOP
+               print(params)
+               update_views(params)
 
-msg = tryCatch(
-  update_views(params),
-  error = function(e) trimws(as.character(e)))
+# msg = tryCatch(
+#   update_views(params),
+#   error = function(e) trimws(as.character(e)))
 
 get_env_output(msg, params$main_file_url)
