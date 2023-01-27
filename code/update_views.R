@@ -338,7 +338,7 @@ set_views = function(x, bg, prefix, sheet_name) {
 ########################################
 
 update_views = function(params) {
-  print("fn.update_views",update_views)
+  print(paste("fn.update_views",params))
   print("params$main_file_ur",params$main_file_ur)
   main_id = as_id(params$main_file_url)
   print("main_id", main_id)
