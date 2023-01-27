@@ -69,7 +69,13 @@ fix_dates = function(d, date_colnames) {
 get_tables = function(
     file_id, date_colnames = NULL,
     sheets = c('groups', 'show_columns', 'sorting', 'viewers', 'data')) {
-  print("get_tables", file_id, date_colnames, sheets)
+  print("fn.get_tables")
+	print("file_id") 
+	print(file_id) 
+	print("date_colnames")
+	print(date_colnames)
+	print("sheets")
+	print(sheets)
   
   tables = lapply(sheets, function(x) setDT(read_sheet(file_id, x)))
   lapply(tables, function(each_table) print(tables))
