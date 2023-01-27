@@ -31,7 +31,7 @@ fix_list_cols = function(d) {
   
   cols = colnames(d)[sapply(colnames(d), function(col) is.list(d[[col]]))]
   
-                            cols)
+#                             cols)
                             for (col in cols) {
     val = unlist(lapply(
       d[[col]], function(v) if (is.null(v)) NA else as.character(v)))
