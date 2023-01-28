@@ -190,15 +190,15 @@ drive_share_get = function(file_id) {
 drive_share_add = function(file_id, emails, role = 'reader') {
   f = drive_get(file_id)
   cli_alert_success('Adding permissions for "{f$name}".')
-  for (email in unique(emails)) {
-    res = tryCatch(
-      drive_share(
-        file_id, role = role, type = 'user', emailAddress = email,
-        sendNotificationEmail = FALSE),
-      error = function(e) e)
-    if (inherits(res, 'error')) print(res)
-  }
-  invisible(f)
+  res = lapply(unique(emails), function(email) {
+      tryCatch(
+        drive_share(
+          file_id, role = role, type = 'user', emailAddress = email,
+          sendNotificationEmail = FALSE),
+        error = function(e) print(e))
+  })
+  r = if (any(sapply(res, inherits, 'error'))) 1 else 0
+  invisible(r)
 }
 
 
@@ -299,7 +299,7 @@ set_views = function(x, bg, prefix, sheet_name) {
   dataset = sort_dataset(x$data, x$sorting)
   bg = copy(bg)[, column_name := x$show_columns$column_name[row - 1L]]
 
-  for (i in 1:nrow(x$groups)) {
+  res = sapply(1:nrow(x$groups), function(i) {
     file_id = as_id(x$groups$file_url[i])
     group_id_now = x$groups$group_id[i]
 
@@ -326,11 +326,12 @@ set_views = function(x, bg, prefix, sheet_name) {
     viewers_add = viewers_now[!viewers_old, on = c('viewer_email' = 'email')]
     viewers_del = viewers_old[!viewers_now, on = c('email' = 'viewer_email')]
 
-    drive_share_add(file_id, viewers_add$viewer_email)
     drive_share_remove(file_id, viewers_del$user_id)
-  }
+    drive_share_add(file_id, viewers_add$viewer_email)
+  })
 
-  invisible(0)
+  r = max(res)
+  invisible(r)
 }
 
 ########################################
@@ -363,7 +364,7 @@ update_views = function(params) {
   cli_alert_success('Got background colors.')
   view_prefix = get_view_prefix(main_id)
   cli_alert_success('Got prefix for view files.')
-  set_views(tables_new, bg, view_prefix, params$view_sheet_name)
+  msg = set_views(tables_new, bg, view_prefix, params$view_sheet_name)
   cli_alert_success('Wrote new tables to view files.')
 
   # update the mirror file
@@ -372,11 +373,13 @@ update_views = function(params) {
   cli_alert_success('Wrote new tables to mirror file.')
 
   # make final message
-  if (all(tables_eq)) {
-    msg = 'Successfully updated views, although no changes detected.'
+  msg = if (msg != 0) {
+    'Updated views, albeit with issues. Please check the workflow logs.'
+  } else if (all(tables_eq)) {
+    'Successfully updated views, although no changes detected.'
   } else {
     msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
-    msg = glue('Successfully updated views based on changes to {msg_end}.')
+    glue('Successfully updated views based on changes to {msg_end}.')
   }
   cli_alert_success(msg)
   return(msg)
