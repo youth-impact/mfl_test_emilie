@@ -62,7 +62,7 @@ get_tables = function(
     sheets = c('groups', 'show_columns', 'sorting', 'viewers', 'data')) {
   tables = lapply(sheets, function(x) setDT(read_sheet(file_id, x)))
   names(tables) = sheets
-  if (nrow(tables$groups) > 0) setorderv(tables$groups, 'group_id')
+  # if (nrow(tables$groups) > 0) setorderv(tables$groups, 'group_id')
   if (nrow(tables$show_columns) > 0) {
     tables$show_columns[is.na(column_label), column_label := column_name]
   }
@@ -188,6 +188,8 @@ drive_share_get = function(file_id) {
 
 
 drive_share_add = function(file_id, emails, role = 'reader') {
+  f = drive_get(file_id)
+  cli_alert_success('Adding permissions for "{f$name}".')
   for (email in unique(emails)) {
     res = tryCatch(
       drive_share(
@@ -196,11 +198,13 @@ drive_share_add = function(file_id, emails, role = 'reader') {
       error = function(e) e)
     if (inherits(res, 'error')) print(res)
   }
-  invisible(drive_get(id = file_id))
+  invisible(f)
 }
 
 
 drive_share_remove = function(file_id, user_ids) {
+  f = drive_get(file_id)
+  cli_alert_success('Removing permissions for "{f$name}".')
   # https://developers.google.com/drive/api/v3/reference/permissions/delete
   for (user_id in unique(user_ids)) {
     req = gargle::request_build(
@@ -210,11 +214,12 @@ drive_share_remove = function(file_id, user_ids) {
       token = drive_token())
     res = googledrive::request_make(req)
   }
-  invisible(drive_get(id = file_id))
+  invisible(f)
 }
 
+########################################
 
-get_background = function(file_id, sheet, range, nonwhite = TRUE) {
+drive_get_background = function(file_id, sheet, range, nonwhite = TRUE) {
   bg = setDT(range_read_cells(file_id, sheet, range, cell_data = 'full'))
   for (p in c('red', 'green', 'blue')) {
     y = lapply(bg$cell, function(z) z$effectiveFormat$backgroundColor[[p]])
@@ -226,10 +231,12 @@ get_background = function(file_id, sheet, range, nonwhite = TRUE) {
   return(bg)
 }
 
-########################################
 
-set_background = function(file_id, background) {
+drive_set_background = function(file_id, background) {
   # only for setting one color per entire column
+  f = drive_get(file_id)
+  cli_alert_success('Setting background colors for "{f$name}".')
+
   bod_base = '{
   "repeatCell": {
     "range": {
@@ -311,7 +318,7 @@ set_views = function(x, bg, prefix, sheet_name) {
     # update formatting
     bg_now = bg[column_name %in% cols_now]
     bg_now[, start_col := match(column_name, cols_now) - 1L]
-    set_background(file_id, bg_now)
+    drive_set_background(file_id, bg_now)
 
     # update permissions
     viewers_now = x$viewers[group_id == group_id_now]
@@ -352,7 +359,7 @@ update_views = function(params) {
   cli_alert_success('Compared old and new tables.')
 
   # update the views
-  bg = get_background(main_id, 'show_columns', 'A2:A')
+  bg = drive_get_background(main_id, 'show_columns', 'A2:A')
   cli_alert_success('Got background colors.')
   view_prefix = get_view_prefix(main_id)
   cli_alert_success('Got prefix for view files.')
