@@ -375,13 +375,14 @@ update_views = function(params) {
   cli_alert_success('Wrote new tables to mirror file.')
 
   # make final message
-  msg = if (msg != 0) {
-    'Updated views, albeit with issues. Please check the workflow logs.'
-  } else if (all(tables_eq)) {
-    'Successfully updated views, although no changes detected.'
+  # if (msg != 0) {
+  #   msg = 'Updated views, albeit with issues. Please check the workflow logs.'
+  # } else if (all(tables_eq)) {
+  if (all(tables_eq)) {
+    msg = 'Successfully updated views, although no changes detected.'
   } else {
     msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
-    glue('Successfully updated views based on changes to {msg_end}.')
+    msg = glue('Successfully updated views based on changes to {msg_end}.')
   }
   cli_alert_success(msg)
   return(msg)
