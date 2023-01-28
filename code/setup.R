@@ -195,7 +195,7 @@ drive_share_add = function(file_id, emails, role = 'reader') {
       drive_share(
         file_id, role = role, type = 'user', emailAddress = email,
         sendNotificationEmail = FALSE),
-      error = function(e) print(e))
+      error = function(e) e)
   })
   # lapply(res, function(r) if (inherits(r, 'error')) print(r))
   r = if (any(sapply(res, inherits, 'error'))) 1 else 0
