@@ -28,7 +28,7 @@ fix_list_cols = function(d) {
       d[[col]], function(v) if (is.null(v)) NA else as.character(v)))
     set(d, j = col, value = val)
   }
-  return(d[])
+  d[]
 }
 
 
@@ -53,7 +53,7 @@ fix_dates = function(d, date_colnames) {
     set(d, j = col, value = as.IDate(d[[col]]))
   }
 
-  return(d[])
+  d[]
 }
 
 
@@ -74,7 +74,7 @@ get_tables = function(
       tables$data = fix_dates(tables$data, date_colnames)
     }
   }
-  return(tables)
+  tables
 }
 
 
@@ -90,7 +90,7 @@ compare_tables = function(x, y) {
       ignore.row.order = d$ignore_row_order[i]))
   })
   names(eq) = d$table_name
-  return(eq)
+  eq
 }
 
 
@@ -122,7 +122,7 @@ get_sorting_validity = function(sorting, dataset) {
       0
     }
   }
-  return(r)
+  r
 }
 
 
@@ -171,7 +171,7 @@ get_tables_validity = function(x) {
     get_sorting_validity(x$sorting, x$data)
   }
   if (r != 0) r = paste('Error:', r)
-  return(r)
+  r
 }
 
 ########################################
@@ -183,7 +183,7 @@ drive_share_get = function(file_id) {
     email = sapply(a2, `[[`, 'emailAddress'),
     user_id = sapply(a2, `[[`, 'id'),
     role = sapply(a2, `[[`, 'role'))
-  return(a3)
+  a3
 }
 
 
@@ -195,6 +195,8 @@ drive_share_add = function(file_id, emails, role = 'reader') {
       drive_share(
         file_id, role = role, type = 'user', emailAddress = email,
         sendNotificationEmail = FALSE),
+      # below has to be print. cat can't handle a purrr indexed error.
+      # message and warning will trigger the tryCatch in update_views.R.
       error = function(e) print(e))
   })
   r = if (any(sapply(res, inherits, 'error'))) 1 else 0
@@ -228,7 +230,7 @@ drive_get_background = function(file_id, sheet, range, nonwhite = TRUE) {
   }
   bg[, cell := NULL][]
   if (nonwhite) bg = bg[!(red == 1 & green == 1 & blue == 1)]
-  return(bg)
+  bg
 }
 
 
@@ -284,14 +286,14 @@ sort_dataset = function(d, sorting) {
     , .(ord = 1 - 2 * any(column_value == '*descending*')),
     by = column_name]
   setorderv(d, v$column_name, v$ord)
-  return(d)
+  d
 }
 
 
 get_view_prefix = function(file_id) {
   r = drive_get(file_id)$name
   r = gsub('main$', 'view', r)
-  return(r)
+  r
 }
 
 
@@ -330,7 +332,7 @@ set_views = function(x, bg, prefix, sheet_name) {
     drive_share_add(file_id, viewers_add$viewer_email)
   })
 
-  r = max(res)
+  r = max(res) # 0 or 1 from drive_share_add
   invisible(r)
 }
 
@@ -384,7 +386,7 @@ update_views = function(params) {
     msg = glue('Successfully updated views based on changes to {msg_end}.')
     cli_alert_success(msg)
   }
-  return(msg)
+  msg
 }
 
 
@@ -397,5 +399,5 @@ get_env_output = function(
   if (Sys.getenv(env) != '') {
     cat(r, file = Sys.getenv(env), sep = '\n', append = TRUE)
   }
-  return(r)
+  r
 }

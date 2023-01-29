@@ -6,4 +6,4 @@ msg = tryCatch(
     'Error encountered. Please check the workflow logs.'
   })
 
-get_env_output(msg, params$main_file_url)
+env_output = get_env_output(msg, params$main_file_url)
