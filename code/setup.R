@@ -195,12 +195,10 @@ drive_share_add = function(file_id, emails, role = 'reader') {
       drive_share(
         file_id, role = role, type = 'user', emailAddress = email,
         sendNotificationEmail = FALSE),
-      error = function(e) e)
+      error = function(e) print(e))
   })
-  # lapply(res, function(r) if (inherits(r, 'error')) print(r))
   r = if (any(sapply(res, inherits, 'error'))) 1 else 0
   invisible(r)
-  invisible(0)
 }
 
 
@@ -375,24 +373,29 @@ update_views = function(params) {
   cli_alert_success('Wrote new tables to mirror file.')
 
   # make final message
-  # if (msg != 0) {
-  #   msg = 'Updated views, albeit with issues. Please check the workflow logs.'
-  # } else if (all(tables_eq)) {
-  if (all(tables_eq)) {
+  if (msg != 0) {
+    msg = 'Updated views, albeit with issues. Please check the workflow logs.'
+    cli_alert_warning(msg)
+  } else if (all(tables_eq)) {
     msg = 'Successfully updated views, although no changes detected.'
+    cli_alert_success(msg)
   } else {
     msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
     msg = glue('Successfully updated views based on changes to {msg_end}.')
+    cli_alert_success(msg)
   }
-  cli_alert_success(msg)
   return(msg)
 }
 
 
 get_env_output = function(
-    msg, file_url, sheet = 'maintainers', colname = 'email') {
+    msg, file_url, sheet = 'maintainers', colname = 'email',
+    env = 'GITHUB_ENV') {
   maintainers = read_sheet(file_url, sheet)
   emails = paste(maintainers[[colname]], collapse = ', ')
   r = glue('MESSAGE={msg}\nFILE_URL={file_url}\nEMAIL_TO={emails}')
+  if (Sys.getenv(env) != '') {
+    cat(r, file = Sys.getenv(env), sep = '\n', append = TRUE)
+  }
   return(r)
 }
