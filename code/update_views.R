@@ -1,7 +1,9 @@
 source(file.path('code', 'setup.R'))
 
 msg = tryCatch(
-  update_views(params),
-  error = function(e) trimws(as.character(e)))
+  update_views(params), error = function(e) {
+    warning(e)
+    'Error encountered. Please check the workflow logs.'
+  })
 
-get_env_output(msg, params$main_file_url)
+env_output = get_env_output(msg, params$main_file_url)

@@ -28,7 +28,7 @@ fix_list_cols = function(d) {
       d[[col]], function(v) if (is.null(v)) NA else as.character(v)))
     set(d, j = col, value = val)
   }
-  return(d[])
+  d[]
 }
 
 
@@ -53,7 +53,7 @@ fix_dates = function(d, date_colnames) {
     set(d, j = col, value = as.IDate(d[[col]]))
   }
 
-  return(d[])
+  d[]
 }
 
 
@@ -62,18 +62,19 @@ get_tables = function(
     sheets = c('groups', 'show_columns', 'sorting', 'viewers', 'data')) {
   tables = lapply(sheets, function(x) setDT(read_sheet(file_id, x)))
   names(tables) = sheets
-  if (nrow(tables$groups) > 0) setorderv(tables$groups, 'group_id')
+  # if (nrow(tables$groups) > 0) setorderv(tables$groups, 'group_id')
   if (nrow(tables$show_columns) > 0) {
     tables$show_columns[is.na(column_label), column_label := column_name]
   }
   tables$viewers = unique(na.omit(tables$viewers))
   if (nrow(tables$data) > 0) {
+    tables$data = tables$data[!is.na(id)]
     tables$data = fix_list_cols(tables$data)
     if (!is.null(date_colnames)) {
       tables$data = fix_dates(tables$data, date_colnames)
     }
   }
-  return(tables)
+  tables
 }
 
 
@@ -89,7 +90,7 @@ compare_tables = function(x, y) {
       ignore.row.order = d$ignore_row_order[i]))
   })
   names(eq) = d$table_name
-  return(eq)
+  eq
 }
 
 
@@ -121,7 +122,7 @@ get_sorting_validity = function(sorting, dataset) {
       0
     }
   }
-  return(r)
+  r
 }
 
 
@@ -170,7 +171,7 @@ get_tables_validity = function(x) {
     get_sorting_validity(x$sorting, x$data)
   }
   if (r != 0) r = paste('Error:', r)
-  return(r)
+  r
 }
 
 ########################################
@@ -182,21 +183,30 @@ drive_share_get = function(file_id) {
     email = sapply(a2, `[[`, 'emailAddress'),
     user_id = sapply(a2, `[[`, 'id'),
     role = sapply(a2, `[[`, 'role'))
-  return(a3)
+  a3
 }
 
 
 drive_share_add = function(file_id, emails, role = 'reader') {
-  for (email in unique(emails)) {
-    drive_share(
-      file_id, role = role, type = 'user', emailAddress = email,
-      sendNotificationEmail = FALSE)
-  }
-  invisible(drive_get(id = file_id))
+  f = drive_get(file_id)
+  cli_alert_success('Adding permissions for "{f$name}".')
+  res = lapply(unique(emails), function(email) {
+    tryCatch(
+      drive_share(
+        file_id, role = role, type = 'user', emailAddress = email,
+        sendNotificationEmail = FALSE),
+      # below has to be print. cat can't handle a purrr indexed error.
+      # message and warning will trigger the tryCatch in update_views.R.
+      error = function(e) print(e))
+  })
+  r = if (any(sapply(res, inherits, 'error'))) 1 else 0
+  invisible(r)
 }
 
 
 drive_share_remove = function(file_id, user_ids) {
+  f = drive_get(file_id)
+  cli_alert_success('Removing permissions for "{f$name}".')
   # https://developers.google.com/drive/api/v3/reference/permissions/delete
   for (user_id in unique(user_ids)) {
     req = gargle::request_build(
@@ -206,11 +216,12 @@ drive_share_remove = function(file_id, user_ids) {
       token = drive_token())
     res = googledrive::request_make(req)
   }
-  invisible(drive_get(id = file_id))
+  invisible(f)
 }
 
+########################################
 
-get_background = function(file_id, sheet, range, nonwhite = TRUE) {
+drive_get_background = function(file_id, sheet, range, nonwhite = TRUE) {
   bg = setDT(range_read_cells(file_id, sheet, range, cell_data = 'full'))
   for (p in c('red', 'green', 'blue')) {
     y = lapply(bg$cell, function(z) z$effectiveFormat$backgroundColor[[p]])
@@ -219,13 +230,15 @@ get_background = function(file_id, sheet, range, nonwhite = TRUE) {
   }
   bg[, cell := NULL][]
   if (nonwhite) bg = bg[!(red == 1 & green == 1 & blue == 1)]
-  return(bg)
+  bg
 }
 
-########################################
 
-set_background = function(file_id, background) {
+drive_set_background = function(file_id, background) {
   # only for setting one color per entire column
+  f = drive_get(file_id)
+  cli_alert_success('Setting background colors for "{f$name}".')
+
   bod_base = '{
   "repeatCell": {
     "range": {
@@ -273,14 +286,14 @@ sort_dataset = function(d, sorting) {
     , .(ord = 1 - 2 * any(column_value == '*descending*')),
     by = column_name]
   setorderv(d, v$column_name, v$ord)
-  return(d)
+  d
 }
 
 
 get_view_prefix = function(file_id) {
   r = drive_get(file_id)$name
   r = gsub('main$', 'view', r)
-  return(r)
+  r
 }
 
 
@@ -288,7 +301,7 @@ set_views = function(x, bg, prefix, sheet_name) {
   dataset = sort_dataset(x$data, x$sorting)
   bg = copy(bg)[, column_name := x$show_columns$column_name[row - 1L]]
 
-  for (i in 1:nrow(x$groups)) {
+  res = sapply(1:nrow(x$groups), function(i) {
     file_id = as_id(x$groups$file_url[i])
     group_id_now = x$groups$group_id[i]
 
@@ -307,7 +320,7 @@ set_views = function(x, bg, prefix, sheet_name) {
     # update formatting
     bg_now = bg[column_name %in% cols_now]
     bg_now[, start_col := match(column_name, cols_now) - 1L]
-    set_background(file_id, bg_now)
+    drive_set_background(file_id, bg_now)
 
     # update permissions
     viewers_now = x$viewers[group_id == group_id_now]
@@ -315,11 +328,12 @@ set_views = function(x, bg, prefix, sheet_name) {
     viewers_add = viewers_now[!viewers_old, on = c('viewer_email' = 'email')]
     viewers_del = viewers_old[!viewers_now, on = c('email' = 'viewer_email')]
 
-    drive_share_add(file_id, viewers_add$viewer_email)
     drive_share_remove(file_id, viewers_del$user_id)
-  }
+    drive_share_add(file_id, viewers_add$viewer_email)
+  })
 
-  invisible(0)
+  r = max(res) # 0 or 1 from drive_share_add
+  invisible(r)
 }
 
 ########################################
@@ -348,11 +362,11 @@ update_views = function(params) {
   cli_alert_success('Compared old and new tables.')
 
   # update the views
-  bg = get_background(main_id, 'show_columns', 'A2:A')
+  bg = drive_get_background(main_id, 'show_columns', 'A2:A')
   cli_alert_success('Got background colors.')
   view_prefix = get_view_prefix(main_id)
   cli_alert_success('Got prefix for view files.')
-  set_views(tables_new, bg, view_prefix, params$view_sheet_name)
+  msg = set_views(tables_new, bg, view_prefix, params$view_sheet_name)
   cli_alert_success('Wrote new tables to view files.')
 
   # update the mirror file
@@ -361,21 +375,29 @@ update_views = function(params) {
   cli_alert_success('Wrote new tables to mirror file.')
 
   # make final message
-  if (all(tables_eq)) {
+  if (msg != 0) {
+    msg = 'Updated views, albeit with issues. Please check the workflow logs.'
+    cli_alert_warning(msg)
+  } else if (all(tables_eq)) {
     msg = 'Successfully updated views, although no changes detected.'
+    cli_alert_success(msg)
   } else {
     msg_end = paste(names(tables_eq)[!tables_eq], collapse = ', ')
     msg = glue('Successfully updated views based on changes to {msg_end}.')
+    cli_alert_success(msg)
   }
-  cli_alert_success(msg)
-  return(msg)
+  msg
 }
 
 
 get_env_output = function(
-    msg, file_url, sheet = 'maintainers', colname = 'email') {
+    msg, file_url, sheet = 'maintainers', colname = 'email',
+    env = 'GITHUB_ENV') {
   maintainers = read_sheet(file_url, sheet)
   emails = paste(maintainers[[colname]], collapse = ', ')
   r = glue('MESSAGE={msg}\nFILE_URL={file_url}\nEMAIL_TO={emails}')
-  return(r)
+  if (Sys.getenv(env) != '') {
+    cat(r, file = Sys.getenv(env), sep = '\n', append = TRUE)
+  }
+  r
 }
