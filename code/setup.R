@@ -376,7 +376,9 @@ update_views = function(params) {
 
   # make final message
   if (msg != 0) {
-    msg = 'Updated views, albeit with issues. Please check the workflow logs.'
+    msg = paste(
+      "Updated views, albeit with issues. Please check the GitHub Actions",
+      "workflow log and the Google Sheet's version history.")
     cli_alert_warning(msg)
   } else if (all(tables_eq)) {
     msg = 'Successfully updated views, although no changes detected.'
