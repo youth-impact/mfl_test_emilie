@@ -1,7 +1,7 @@
 source(file.path('code', 'setup.R'))
 
 msg = tryCatch(
-  update_views(params), error = function(e) {
+  update_views(params), error = \(e) {
     warning(e)
     paste("Error encountered. Please check the GitHub Actions",
           "workflow log and the Google Sheet's version history.")
