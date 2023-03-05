@@ -1,4 +1,5 @@
 library('cli')
+library('checkmate')
 library('data.table')
 library('glue')
 library('googledrive')
@@ -11,7 +12,7 @@ params = read_yaml(file.path(paramsDir, 'params.yaml'))
 ########################################
 
 if (Sys.getenv('GOOGLE_TOKEN') == '') {
-  drive_auth()
+  drive_auth(email = 'youthimpactautomation@gmail.com')
 } else {
   drive_auth(path = Sys.getenv('GOOGLE_TOKEN'))
 }
@@ -21,11 +22,12 @@ gs4_auth(token = drive_token())
 ########################################
 
 fix_list_cols = function(d) {
+  assert_data_table(d)
   d = copy(d)
-  cols = colnames(d)[sapply(colnames(d), function(col) is.list(d[[col]]))]
+  cols = colnames(d)[sapply(colnames(d), \(col) is.list(d[[col]]))]
   for (col in cols) {
     val = unlist(lapply(
-      d[[col]], function(v) if (is.null(v)) NA else as.character(v)))
+      d[[col]], \(v) if (is.null(v)) NA else as.character(v)))
     set(d, j = col, value = val)
   }
   d[]
@@ -33,6 +35,9 @@ fix_list_cols = function(d) {
 
 
 fix_dates = function(d, date_colnames) {
+  assert_data_table(d)
+  assert_character(date_colnames)
+
   d = copy(d)
   date_zero = as.IDate('1899-12-30') # tested by trial and error in gsheets
   date_formats = c('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y')
@@ -60,7 +65,12 @@ fix_dates = function(d, date_colnames) {
 get_tables = function(
     file_id, date_colnames = NULL,
     sheets = c('groups', 'show_columns', 'sorting', 'viewers', 'data')) {
-  tables = lapply(sheets, function(x) setDT(read_sheet(file_id, x)))
+
+  assert_class(file_id, 'drive_id')
+  assert_character(date_colnames, any.missing = FALSE, null.ok = TRUE)
+  assert_character(sheets, any.missing = FALSE)
+
+  tables = lapply(sheets, \(x) setDT(read_sheet(file_id, x)))
   names(tables) = sheets
   # if (nrow(tables$groups) > 0) setorderv(tables$groups, 'group_id')
   if (nrow(tables$show_columns) > 0) {
@@ -79,59 +89,69 @@ get_tables = function(
 
 
 compare_tables = function(x, y) {
-  d = data.table(
+  assert_list(x, types = 'data.table', any.missing = FALSE)
+  assert_list(y, types = 'data.table', any.missing = FALSE)
+
+  meta = data.table(
     table_name = c('groups', 'show_columns', 'sorting', 'viewers', 'data'),
     ignore_row_order = c(TRUE, FALSE, FALSE, TRUE, TRUE),
     ignore_col_order = c(TRUE, FALSE, TRUE, TRUE, TRUE))
-  eq = sapply(seq_len(nrow(d)), function(i) {
+
+  eq = sapply(seq_len(nrow(meta)), \(i) {
     isTRUE(all.equal(
-      x[[d$table_name[i]]], y[[d$table_name[i]]], check.attributes = FALSE,
-      ignore.col.order = d$ignore_col_order[i],
-      ignore.row.order = d$ignore_row_order[i]))
+      x[[meta$table_name[i]]], y[[meta$table_name[i]]],
+      check.attributes = FALSE,
+      ignore.col.order = meta$ignore_col_order[i],
+      ignore.row.order = meta$ignore_row_order[i]))
   })
-  names(eq) = d$table_name
+  names(eq) = meta$table_name
   eq
 }
 
 
 get_sorting_validity = function(sorting, dataset) {
+  assert_data_table(sorting)
+  assert_data_table(dataset)
+
   sorting = copy(sorting)
-  r = if (!setequal(colnames(sorting), c('column_name', 'column_value'))) {
+  ans = if (!setequal(colnames(sorting), c('column_name', 'column_value'))) {
     paste('Column names of the `sorting` sheet are not',
           '"column_name" and "column_value".')
   } else if (!all(sorting$column_name %in% colnames(dataset))) {
     glue('The `column_name` column of the `sorting` sheet contains ',
          'values that are not column names of the dataset.')
   } else {
-    ast = c('*ascending*', '*descending*')
-    n = table(sorting[column_value %in% ast]$column_name)
+    special = c('*ascending*', '*descending*')
+    n = table(sorting[column_value %in% special]$column_name)
 
-    d1 = sorting[!(column_value %in% ast)]
-    cols = unique(d1$column_name)
-    d2 = unique(melt(
+    sort_plain = sorting[!(column_value %in% special)]
+    cols = unique(sort_plain$column_name)
+    data_plain = unique(melt(
       dataset[, ..cols], measure.vars = cols, variable.factor = FALSE,
       variable.name = 'column_name', value.name = 'column_value'))
 
     if (any(n > 1)) {
       paste('In the `sorting` sheet, "*ascending*" or "*descending*"',
             'is not the only `column_value` for a given `column_name`.')
-    } else if (nrow(d1) > 0 && nrow(fsetdiff(d1, d2)) > 0) {
+    } else if (
+      nrow(sort_plain) > 0 && nrow(fsetdiff(sort_plain, data_plain)) > 0) {
       glue('The `sorting` sheet contains combinations of `column_name` ',
            'and `column_value` not present in the dataset.')
     } else {
       0
     }
   }
-  r
+  ans
 }
 
 
 get_tables_validity = function(x) {
+  assert_list(x, types = 'data.table', any.missing = FALSE)
   cols = c('column_name', 'column_label')
   group_cols = setdiff(colnames(x$show_columns), cols)
   viewer_cols = c('viewer_name', 'viewer_email', 'group_id')
 
-  r = if (!identical(colnames(x$groups), c('group_id', 'file_url'))) {
+  ans = if (!identical(colnames(x$groups), c('group_id', 'file_url'))) {
     'Column names of the `groups` sheet are not "group_id" and "file_url".'
   } else if (any(apply(x$groups, 2, uniqueN) != nrow(x$groups))) {
     'At least one column of the `groups` sheet contains duplicated values.'
@@ -170,63 +190,71 @@ get_tables_validity = function(x) {
   } else {
     get_sorting_validity(x$sorting, x$data)
   }
-  if (r != 0) r = paste('Error:', r)
-  r
+  if (ans != 0) ans = paste('Error:', ans)
+  ans
 }
 
 ########################################
 
 drive_share_get = function(file_id) {
-  a1 = drive_get(file_id)
-  a2 = a1$drive_resource[[1L]]$permissions
-  a3 = data.table(
-    email = sapply(a2, `[[`, 'emailAddress'),
-    user_id = sapply(a2, `[[`, 'id'),
-    role = sapply(a2, `[[`, 'role'))
-  a3
+  assert_class(file_id, 'drive_id')
+  perms = drive_get(file_id)$drive_resource[[1L]]$permissions
+  shares = data.table(
+    email = sapply(perms, `[[`, 'emailAddress'),
+    user_id = sapply(perms, `[[`, 'id'),
+    role = sapply(perms, `[[`, 'role'))
 }
 
 
 drive_share_add = function(file_id, emails, role = 'reader') {
-  f = drive_get(file_id)
-  cli_alert_success('Adding permissions for "{f$name}".')
-  res = lapply(unique(emails), function(email) {
+  assert_class(file_id, 'drive_id')
+  assert_character(emails, any.missing = FALSE)
+  assert_string(role)
+
+  gfile = drive_get(file_id)
+  cli_alert_success('Adding permissions for "{gfile$name}".')
+  result = lapply(unique(emails), \(email) {
     tryCatch(
       drive_share(
         file_id, role = role, type = 'user', emailAddress = email,
         sendNotificationEmail = FALSE),
       # below has to be print. cat can't handle a purrr indexed error.
       # message and warning will trigger the tryCatch in update_views.R.
-      error = function(e) print(e))
+      error = \(e) print(e))
   })
-  r = if (any(sapply(res, inherits, 'error'))) 1 else 0
-  invisible(r)
+  ans = if (any(sapply(result, inherits, 'error'))) 1 else 0
+  invisible(ans)
 }
 
 
 drive_share_remove = function(file_id, user_ids) {
-  f = drive_get(file_id)
-  cli_alert_success('Removing permissions for "{f$name}".')
+  assert_class(file_id, 'drive_id')
+  gfile = drive_get(file_id)
+  cli_alert_success('Removing permissions for "{gfile$name}".')
   # https://developers.google.com/drive/api/v3/reference/permissions/delete
   for (user_id in unique(user_ids)) {
-    req = gargle::request_build(
+    request = gargle::request_build(
       path = 'drive/v3/files/{fileId}/permissions/{permissionId}',
       method = 'DELETE',
       params = list(fileId = file_id, permissionId = user_id),
       token = drive_token())
-    res = googledrive::request_make(req)
+    result = googledrive::request_make(request)
   }
-  invisible(f)
+  invisible(gfile)
 }
 
 ########################################
 
 drive_get_background = function(file_id, sheet, range, nonwhite = TRUE) {
+  assert_class(file_id, 'drive_id')
+  assert_string(sheet)
+  assert_flag(nonwhite)
+
   bg = setDT(range_read_cells(file_id, sheet, range, cell_data = 'full'))
-  for (p in c('red', 'green', 'blue')) {
-    y = lapply(bg$cell, function(z) z$effectiveFormat$backgroundColor[[p]])
-    y = sapply(y, function(z) if (is.null(z)) 0 else z)
-    set(bg, j = p, value = y)
+  for (color in c('red', 'green', 'blue')) {
+    value = lapply(bg$cell, \(z) z$effectiveFormat$backgroundColor[[color]]) |>
+      sapply(\(z) if (is.null(z)) 0 else z)
+    set(bg, j = color, value = value)
   }
   bg[, cell := NULL][]
   if (nonwhite) bg = bg[!(red == 1 & green == 1 & blue == 1)]
@@ -235,9 +263,12 @@ drive_get_background = function(file_id, sheet, range, nonwhite = TRUE) {
 
 
 drive_set_background = function(file_id, background) {
+  assert_class(file_id, 'drive_id')
+  assert_data_table(background)
+
   # only for setting one color per entire column
-  f = drive_get(file_id)
-  cli_alert_success('Setting background colors for "{f$name}".')
+  gfile = drive_get(file_id)
+  cli_alert_success('Setting background colors for "{gfile$name}".')
 
   bod_base = '{
   "repeatCell": {
@@ -262,46 +293,52 @@ drive_set_background = function(file_id, background) {
   background[, bod := glue(bod_base, .envir = .SD, .open = '(', .close = ')')]
   bod = sprintf('{"requests": [%s]}', paste(background$bod, collapse = ',\n'))
 
-  req = googlesheets4::request_generate(
+  request = googlesheets4::request_generate(
     'sheets.spreadsheets.batchUpdate', list(spreadsheetId = file_id))
-  req$body = bod
-  res = googlesheets4::request_make(req)
-  invisible(res)
+  request$body = bod
+  result = googlesheets4::request_make(request)
+  invisible(result)
 }
 
 ########################################
 
-sort_dataset = function(d, sorting) {
-  d = copy(d)
+sort_dataset = function(dataset, sorting) {
+  assert_data_table(dataset)
+  assert_data_table(sorting)
+  dataset = copy(dataset)
 
-  ast = c('*ascending*', '*descending*')
-  cols_tmp = unique(sorting[!(column_value %in% ast)]$column_name)
+  special = c('*ascending*', '*descending*')
+  cols_tmp = unique(sorting[!(column_value %in% special)]$column_name)
   for (col in cols_tmp) {
     levs_tmp = sorting[column_name == col]$column_value
-    levs = c(levs_tmp, setdiff(unique(d[[col]]), levs_tmp))
-    d[, y := factor(y, levs), env = list(y = col)]
+    levs = c(levs_tmp, setdiff(unique(dataset[[col]]), levs_tmp))
+    dataset[, y := factor(y, levs), env = list(y = col)]
   }
 
-  v = sorting[
-    , .(ord = 1 - 2 * any(column_value == '*descending*')),
+  ordering = sorting[, .(
+    ord = 1 - 2 * any(column_value == '*descending*')),
     by = column_name]
-  setorderv(d, v$column_name, v$ord)
-  d
+  setorderv(dataset, cols = ordering$column_name, order = ordering$ord)
+  dataset
 }
 
 
 get_view_prefix = function(file_id) {
-  r = drive_get(file_id)$name
-  r = gsub('main$', 'view', r)
-  r
+  gfile = drive_get(file_id)$name
+  gsub('main$', 'view', gfile)
 }
 
 
 set_views = function(x, bg, prefix, sheet_name) {
+  assert_list(x, types = 'data.table', any.missing = FALSE)
+  assert_data_table(bg)
+  assert_string(prefix)
+  assert_string(sheet_name)
+
   dataset = sort_dataset(x$data, x$sorting)
   bg = copy(bg)[, column_name := x$show_columns$column_name[row - 1L]]
 
-  res = sapply(1:nrow(x$groups), function(i) {
+  result = sapply(1:nrow(x$groups), \(i) {
     file_id = as_id(x$groups$file_url[i])
     group_id_now = x$groups$group_id[i]
 
@@ -329,16 +366,18 @@ set_views = function(x, bg, prefix, sheet_name) {
     viewers_del = viewers_old[!viewers_now, on = c('email' = 'viewer_email')]
 
     drive_share_remove(file_id, viewers_del$user_id)
-    drive_share_add(file_id, viewers_add$viewer_email)
+    drive_share_add(file_id, viewers_add$viewer_email) # returns 0 or 1
   })
 
-  r = max(res) # 0 or 1 from drive_share_add
-  invisible(r)
+  ans = max(result) # 0 or 1 from drive_share_add
+  invisible(ans)
 }
 
 ########################################
 
 update_views = function(params) {
+  assert_list(params)
+
   main_id = as_id(params$main_file_url)
   mirror_id = as_id(params$mirror_file_url)
   cli_alert_success('Created file ids from file urls.')
@@ -370,13 +409,15 @@ update_views = function(params) {
   cli_alert_success('Wrote new tables to view files.')
 
   # update the mirror file
-  r = lapply(names(tables_new)[!tables_eq], function(i) {
-    write_sheet(tables_new[[i]], mirror_id, i)})
+  lapply(names(tables_new)[!tables_eq], \(tbl_name) {
+    write_sheet(tables_new[[tbl_name]], mirror_id, tbl_name)})
   cli_alert_success('Wrote new tables to mirror file.')
 
   # make final message
   if (msg != 0) {
-    msg = 'Updated views, albeit with issues. Please check the workflow logs.'
+    msg = paste(
+      "Updated views, albeit with issues. Please check the GitHub Actions",
+      "workflow log and the Google Sheet's version history.")
     cli_alert_warning(msg)
   } else if (all(tables_eq)) {
     msg = 'Successfully updated views, although no changes detected.'
@@ -395,9 +436,9 @@ get_env_output = function(
     env = 'GITHUB_ENV') {
   maintainers = read_sheet(file_url, sheet)
   emails = paste(maintainers[[colname]], collapse = ', ')
-  r = glue('MESSAGE={msg}\nFILE_URL={file_url}\nEMAIL_TO={emails}')
+  env_out = glue('MESSAGE={msg}\nFILE_URL={file_url}\nEMAIL_TO={emails}')
   if (Sys.getenv(env) != '') {
-    cat(r, file = Sys.getenv(env), sep = '\n', append = TRUE)
+    cat(env_out, file = Sys.getenv(env), sep = '\n', append = TRUE)
   }
-  r
+  env_out
 }
