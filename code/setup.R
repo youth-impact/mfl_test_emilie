@@ -33,7 +33,6 @@ fix_list_cols = function(d) {
   d[]
 }
 
-
 fix_dates = function(d, date_colnames) {
   assert_data_table(d)
   assert_character(date_colnames)
@@ -61,10 +60,10 @@ fix_dates = function(d, date_colnames) {
   d[]
 }
 
-
 get_tables = function(
     file_id, date_colnames = NULL,
-    sheets = c('groups', 'show_columns', 'sorting', 'viewers', 'data')) {
+    sheets = c(
+      'groups', 'show_columns', 'hide_rows', 'sorting', 'viewers', 'data')) {
 
   assert_class(file_id, 'drive_id')
   assert_character(date_colnames, any.missing = FALSE, null.ok = TRUE)
@@ -72,11 +71,12 @@ get_tables = function(
 
   tables = lapply(sheets, \(x) setDT(read_sheet(file_id, x)))
   names(tables) = sheets
-  # if (nrow(tables$groups) > 0) setorderv(tables$groups, 'group_id')
+
   if (nrow(tables$show_columns) > 0) {
     tables$show_columns[is.na(column_label), column_label := column_name]
   }
   tables$viewers = unique(na.omit(tables$viewers))
+
   if (nrow(tables$data) > 0) {
     tables$data = tables$data[!is.na(id)]
     tables$data = fix_list_cols(tables$data)
@@ -87,15 +87,15 @@ get_tables = function(
   tables
 }
 
-
 compare_tables = function(x, y) {
   assert_list(x, types = 'data.table', any.missing = FALSE)
   assert_list(y, types = 'data.table', any.missing = FALSE)
 
   meta = data.table(
-    table_name = c('groups', 'show_columns', 'sorting', 'viewers', 'data'),
-    ignore_row_order = c(TRUE, FALSE, FALSE, TRUE, TRUE),
-    ignore_col_order = c(TRUE, FALSE, TRUE, TRUE, TRUE))
+    table_name = c(
+      'groups', 'show_columns', 'hide_rows', 'sorting', 'viewers', 'data'),
+    ignore_row_order = c(TRUE, FALSE, FALSE, FALSE, TRUE, TRUE),
+    ignore_col_order = c(TRUE, FALSE, FALSE, TRUE, TRUE, TRUE))
 
   eq = sapply(seq_len(nrow(meta)), \(i) {
     isTRUE(all.equal(
@@ -108,8 +108,105 @@ compare_tables = function(x, y) {
   eq
 }
 
+get_validity_groups = function(groups) {
+  ans = if (!identical(colnames(groups), c('group_id', 'file_url'))) {
+    'Column names of the `groups` sheet are not "group_id" and "file_url".'
+  } else if (any(apply(groups, 2, uniqueN) != nrow(groups))) {
+    'At least one column of the `groups` sheet contains duplicated values.'
+  } else if (!identical(
+    as_id(groups$file_url), drive_get(groups$file_url)$id)) {
+    # might just throw an error
+    paste('At least one row of the `file_url` column of the `groups`',
+          'sheet does not correspond to a valid spreadsheet file.')
+  } else {
+    0
+  }
+  ans
+}
 
-get_sorting_validity = function(sorting, dataset) {
+get_validity_show_columns = function(show_columns, group_ids, data_cols) {
+  ans = if (!identical(
+    colnames(show_columns)[1:2], c('column_name', 'column_label'))) {
+    paste('The first two columns of the `show_columns` sheet',
+          'are not named "column_name" and "column_label".')
+  } else if (anyDuplicated(show_columns$column_name) != 0) {
+    paste('The `column_name` column of the `show_columns`',
+          'sheet contains duplicated values.')
+  } else if (!all(show_columns$column_name %in% data_cols)) {
+    paste('The `column_name` column of the `show_columns` sheet contains',
+          'values not present in the column names of the dataset.')
+  } else if (anyDuplicated(show_columns$column_label) != 0) {
+    paste('The `column_label` column of the `show_columns`',
+          'sheet contains duplicated values.')
+  } else if (!setequal(colnames(show_columns)[-(1:2)], group_ids)) {
+    paste('Column names (from C column onward) of the `show_columns` sheet',
+          'do not match values of `group_id` in the `groups` sheet.')
+  } else if (anyNA(show_columns[, ..group_ids])) {
+    paste('The columns for the groups in the `show_columns` sheet',
+          'contain missing values.')
+  } else if (!all(as.matrix(show_columns[, ..group_ids]) %in% 0:1)) {
+    paste('The columns for the groups in the `show_columns` sheet',
+          'contain values other than 0 and 1.')
+  } else {
+    0
+  }
+  ans
+}
+
+get_validity_hide_rows = function(hide_rows, group_ids, dataset) {
+  cols = c('column_name', 'column_value')
+  ans = if (!identical(colnames(hide_rows)[1:2], cols)) {
+    paste('The first two columns of the `hide_rows` sheet',
+          'are not named "column_name" and "column_value".')
+  } else if (!setequal(colnames(hide_rows)[-(1:2)], group_ids)) {
+    paste('Column names (from C column onward) of the `hide_rows` sheet',
+          'do not match values of `group_id` in the `groups` sheet.')
+  } else if (anyDuplicated(hide_rows[, ..cols])) {
+    paste('The `column_name` and `column_value` columns of',
+          'the `hide_rows` sheet contain duplicated values.')
+  } else if (anyNA(hide_rows[, ..group_ids])) {
+    paste('The columns for the groups in the `hide_rows` sheet',
+          'contain missing values.')
+  } else if (!all(as.matrix(hide_rows[, ..group_ids]) %in% c('show', 'hide'))) {
+    paste('The columns for the groups in the `hide_rows` sheet',
+          'contain values other than "show" and "hide".')
+  } else if (!all(hide_rows$column_name %in% colnames(dataset))) {
+    # this block and the next could be adapted for sorting validity,
+    # but if it ain't broke
+    paste('The `hide_rows` sheet contains values for',
+          '`column_name` not present in the dataset.')
+  } else {
+    ans = 0
+    for (i in seq_len(nrow(hide_rows))) {
+      now = hide_rows[i]
+      if (!(now$column_value %in% dataset[[now$column_name]])) {
+        ans = glue(
+          'The `hide_rows` sheet contains `column_name` "{now$column_name}"',
+          ' and `column_value` "{now$column_value}", but this combination is',
+          ' not present in the dataset.')
+        break
+      }
+    }
+    ans
+  }
+  ans
+}
+
+get_validity_viewers = function(viewers, group_ids) {
+  ans = if (!setequal(
+    colnames(viewers), c('viewer_name', 'viewer_email', 'group_id'))) {
+    paste('Column names of the `viewers` sheet are not',
+          '"viewer_name", "viewer_email", and "group_id".')
+  } else if (!all(viewers$group_id %in% group_ids)) {
+    paste('Values of `group_id` of the `viewers` sheet',
+          'do not match those of the `groups` sheet.')
+  } else {
+    0
+  }
+  ans
+}
+
+get_validity_sorting = function(sorting, dataset) {
   assert_data_table(sorting)
   assert_data_table(dataset)
 
@@ -118,14 +215,15 @@ get_sorting_validity = function(sorting, dataset) {
     paste('Column names of the `sorting` sheet are not',
           '"column_name" and "column_value".')
   } else if (!all(sorting$column_name %in% colnames(dataset))) {
-    glue('The `column_name` column of the `sorting` sheet contains ',
-         'values that are not column names of the dataset.')
+    paste('The `column_name` column of the `sorting` sheet contains',
+          'values that are not column names of the dataset.')
   } else {
     special = c('*ascending*', '*descending*')
     n = table(sorting[column_value %in% special]$column_name)
 
     sort_plain = sorting[!(column_value %in% special)]
     cols = unique(sort_plain$column_name)
+    # this might break for non-character columns
     data_plain = unique(melt(
       dataset[, ..cols], measure.vars = cols, variable.factor = FALSE,
       variable.name = 'column_name', value.name = 'column_value'))
@@ -135,8 +233,8 @@ get_sorting_validity = function(sorting, dataset) {
             'is not the only `column_value` for a given `column_name`.')
     } else if (
       nrow(sort_plain) > 0 && nrow(fsetdiff(sort_plain, data_plain)) > 0) {
-      glue('The `sorting` sheet contains combinations of `column_name` ',
-           'and `column_value` not present in the dataset.')
+      paste('The `sorting` sheet contains combinations of `column_name`',
+            'and `column_value` not present in the dataset.')
     } else {
       0
     }
@@ -144,54 +242,24 @@ get_sorting_validity = function(sorting, dataset) {
   ans
 }
 
-
-get_tables_validity = function(x) {
+get_validity_tables = function(x) {
   assert_list(x, types = 'data.table', any.missing = FALSE)
-  cols = c('column_name', 'column_label')
-  group_cols = setdiff(colnames(x$show_columns), cols)
-  viewer_cols = c('viewer_name', 'viewer_email', 'group_id')
 
-  ans = if (!identical(colnames(x$groups), c('group_id', 'file_url'))) {
-    'Column names of the `groups` sheet are not "group_id" and "file_url".'
-  } else if (any(apply(x$groups, 2, uniqueN) != nrow(x$groups))) {
-    'At least one column of the `groups` sheet contains duplicated values.'
-  } else if (!identical(
-    as_id(x$groups$file_url), drive_get(x$groups$file_url)$id)) {
-    # might just throw an error
-    paste('At least one row of the `file_url` column of the `groups`',
-          'sheet does not correspond to a valid spreadsheet file.')
-  } else if (!identical(colnames(x$show_columns)[1:2], cols)) {
-    paste('The first two columns of the `show_columns` sheet',
-          'are not named "column_name" and "column_label".')
-  } else if (!setequal(x$groups$group_id, group_cols)) {
-    paste('Values of `group_id` of the `groups` sheet do not match the',
-          'column names (from C column onward) of the `show_columns` sheet.')
-  } else if (anyDuplicated(x$show_columns$column_name) != 0) {
-    paste('The `column_name` column of the `show_columns`',
-          'sheet contains duplicated values.')
-  } else if (!all(x$show_columns$column_name %in% colnames(x$data))) {
-    glue('The `column_name` column of the `show_columns` sheet contains',
-         ' values not present in the column names of the dataset.')
-  } else if (anyDuplicated(x$show_columns$column_label) != 0) {
-    paste('The `column_label` column of the `show_columns`',
-          'sheet contains duplicated values.')
-  } else if (anyNA(x$show_columns[, ..group_cols])) {
-    paste('The columns for the groups in the `show_columns` sheet',
-          'contain missing values.')
-  } else if (!all(as.matrix(x$show_columns[, ..group_cols]) %in% 0:1)) {
-    paste('The columns for the groups in the `show_columns` sheet',
-          'contain values other than 0 and 1.')
-  } else if (!setequal(colnames(x$viewers), viewer_cols)) {
-    paste('Column names of the `viewers` sheet are not',
-          '"viewer_name", "viewer_email", and "group_id".')
-  } else if (!all(x$viewers$group_id %in% group_cols)) {
-    paste('Values of `group_id` of the `viewers` sheet',
-          'do not match those of the `groups` sheet.')
-  } else {
-    get_sorting_validity(x$sorting, x$data)
-  }
-  if (ans != 0) ans = paste('Error:', ans)
-  ans
+  ans = get_validity_groups(x$groups)
+  if (ans != 0) return(ans)
+
+  group_ids = x$groups$group_id
+  data_cols = colnames(x$data)
+  ans = get_validity_show_columns(x$show_columns, group_ids, data_cols)
+  if (ans != 0) return(ans)
+
+  ans = get_validity_hide_rows(x$hide_rows, group_ids, x$data)
+  if (ans != 0) return(ans)
+
+  ans = get_validity_viewers(x$viewers, group_ids)
+  if (ans != 0) return(ans)
+
+  ans = get_validity_sorting(x$sorting, x$data)
 }
 
 ########################################
@@ -204,7 +272,6 @@ drive_share_get = function(file_id) {
     user_id = sapply(perms, `[[`, 'id'),
     role = sapply(perms, `[[`, 'role'))
 }
-
 
 drive_share_add = function(file_id, emails, role = 'reader') {
   assert_class(file_id, 'drive_id')
@@ -225,7 +292,6 @@ drive_share_add = function(file_id, emails, role = 'reader') {
   ans = if (any(sapply(result, inherits, 'error'))) 1 else 0
   invisible(ans)
 }
-
 
 drive_share_remove = function(file_id, user_ids) {
   assert_class(file_id, 'drive_id')
@@ -260,7 +326,6 @@ drive_get_background = function(file_id, sheet, range, nonwhite = TRUE) {
   if (nonwhite) bg = bg[!(red == 1 & green == 1 & blue == 1)]
   bg
 }
-
 
 drive_set_background = function(file_id, background) {
   assert_class(file_id, 'drive_id')
@@ -322,12 +387,22 @@ sort_dataset = function(dataset, sorting) {
   dataset
 }
 
-
 get_view_prefix = function(file_id) {
   gfile = drive_get(file_id)$name
   gsub('main$', 'view', gfile)
 }
 
+get_filtered_dataset = function(dataset, hide_rows, group_id) {
+  dataset_new = copy(dataset)
+  for (i in seq_len(nrow(hide_rows))) {
+    if (hide_rows[[group_id]][i] == 'hide') {
+      env = list(col_name = hide_rows$column_name[i])
+      dataset_new = dataset_new[
+        col_name != hide_rows$column_value[i], env = env]
+    }
+  }
+  dataset_new
+}
 
 set_views = function(x, bg, prefix, sheet_name) {
   assert_list(x, types = 'data.table', any.missing = FALSE)
@@ -338,7 +413,7 @@ set_views = function(x, bg, prefix, sheet_name) {
   dataset = sort_dataset(x$data, x$sorting)
   bg = copy(bg)[, column_name := x$show_columns$column_name[row - 1L]]
 
-  result = sapply(1:nrow(x$groups), \(i) {
+  result = sapply(seq_len(nrow(x$groups)), \(i) {
     file_id = as_id(x$groups$file_url[i])
     group_id_now = x$groups$group_id[i]
 
@@ -346,9 +421,10 @@ set_views = function(x, bg, prefix, sheet_name) {
     drive_rename(file_id, glue('{prefix}_{group_id_now}'), overwrite = TRUE)
 
     # update contents
+    dataset_now = get_filtered_dataset(dataset, x$hide_rows, group_id_now)
     idx = x$show_columns[[group_id_now]] == 1
     cols_now = x$show_columns$column_name[idx]
-    dataset_now = dataset[, ..cols_now]
+    dataset_now = dataset_now[, ..cols_now]
     setnames(dataset_now, cols_now, x$show_columns$column_label[idx])
 
     write_sheet(dataset_now, file_id, sheet = sheet_name)
@@ -389,9 +465,10 @@ update_views = function(params) {
   cli_alert_success('Fetched new tables from main file.')
 
   # check validity of tables
-  msg = get_tables_validity(tables_new)
+  msg = get_validity_tables(tables_new)
   cli_alert_success('Checked validity of new tables.')
   if (msg != 0) {
+    msg = paste('Error:', msg)
     cli_alert_danger(msg)
     return(msg)
   }
@@ -429,7 +506,6 @@ update_views = function(params) {
   }
   msg
 }
-
 
 get_env_output = function(
     msg, file_url, sheet = 'maintainers', colname = 'email',
