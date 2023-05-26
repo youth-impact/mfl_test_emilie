@@ -66,6 +66,7 @@ fix_dates = function(d, date_colnames) {
 
   for (col in date_colnames) {
     if (is.character(d[[col]])) {
+      d[col == '-', col := NA, env = list(col = col)]
       d[grepl('^\\d{5}$', col),
         col := as.integer(col) + date_zero,
         env = list(col = col)]
