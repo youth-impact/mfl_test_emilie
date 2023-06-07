@@ -168,7 +168,7 @@ get_validity_hide_rows = function(hide_rows, group_ids, dataset) {
   } else if (!setequal(colnames(hide_rows)[-(1:2)], group_ids)) {
     paste('Column names (from C column onward) of the `hide_rows` sheet',
           'do not match values of `group_id` in the `groups` sheet.')
-  } else if (anyDuplicated(hide_rows[, ..cols])) {
+  } else if (anyDuplicated(hide_rows[, .(column_name, unlist(column_value))])) {
     paste('The `column_name` and `column_value` columns of',
           'the `hide_rows` sheet contain duplicated values.')
   } else if (anyNA(hide_rows[, ..group_ids])) {
@@ -413,7 +413,7 @@ get_filtered_dataset = function(dataset, hide_rows, group_id) {
     if (hide_rows[[group_id]][i] == 'hide') {
       env = list(col_name = hide_rows$column_name[i])
       dataset_new = dataset_new[
-        col_name != hide_rows$column_value[i], env = env]
+        col_name != hide_rows$column_value[[i]], env = env]
     }
   }
   dataset_new
