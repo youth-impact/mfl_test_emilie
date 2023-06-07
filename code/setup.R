@@ -34,15 +34,16 @@ fix_list_cols = function(d) {
 }
 
 
-fix_dates = function(d, date_colnames) {
+fix_dates = function(d, date_colnames, preferred_date_format) {
   assert_data_table(d)
   assert_character(date_colnames)
 
   d = copy(d)
   date_zero = as.IDate('1899-12-30') # tested by trial and error in gsheets
-  date_formats = c('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y')
+  date_formats = c('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', '%d-%b-%Y')
   date_regs = c(
-    '^\\d{4}-\\d{2}-\\d{2}$', '^\\d{2}-\\d{2}-\\d{4}$', '^\\d{2}/\\d{2}/\\d{4}$')
+    '^\\d{4}-\\d{2}-\\d{2}$', '^\\d{2}-\\d{2}-\\d{4}$',
+    '^\\d{2}/\\d{2}/\\d{4}$', '^\\d{2}-[a-zA-Z]{3}-\\d{4}$')
 
   for (col in date_colnames) {
     if (is.character(d[[col]])) {
@@ -57,6 +58,9 @@ fix_dates = function(d, date_colnames) {
       }
     }
     set(d, j = col, value = as.IDate(d[[col]]))
+    # converts to charater, but this ensures proper display in the google sheets
+    # and valid comparison of old and new tables
+    set(d, j = col, value = format(d[[col]], format = preferred_date_format))
   }
 
   d[]
@@ -64,7 +68,7 @@ fix_dates = function(d, date_colnames) {
 
 
 get_tables = function(
-    file_id, date_colnames = NULL,
+    file_id, date_colnames = NULL, preferred_date_format = NULL,
     sheets = c(
       'groups', 'show_columns', 'hide_rows', 'sorting', 'viewers', 'data')) {
 
@@ -84,7 +88,7 @@ get_tables = function(
     tables$data = tables$data[!is.na(id)]
     tables$data = fix_list_cols(tables$data)
     if (!is.null(date_colnames)) {
-      tables$data = fix_dates(tables$data, date_colnames)
+      tables$data = fix_dates(tables$data, date_colnames, preferred_date_format)
     }
   }
   tables
@@ -475,9 +479,11 @@ update_views = function(params) {
   cli_alert_success('Created file ids from file urls.')
 
   # get previous and current versions of tables
-  tables_old = get_tables(mirror_id, params$date_colnames)
+  tables_old = get_tables(
+    mirror_id, params$date_colnames, params$preferred_date_format)
   cli_alert_success('Fetched old tables from mirror file.')
-  tables_new = get_tables(main_id, params$date_colnames)
+  tables_new = get_tables(
+    main_id, params$date_colnames, params$preferred_date_format)
   cli_alert_success('Fetched new tables from main file.')
 
   # check validity of tables
