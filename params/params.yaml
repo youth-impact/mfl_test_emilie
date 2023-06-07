@@ -2,3 +2,4 @@ main_file_url: https://docs.google.com/spreadsheets/d/1IbIMR_lV1fU-6lFG_PWSyZqwt
 mirror_file_url: https://docs.google.com/spreadsheets/d/1XKhly7lRqieTk9J1yq1EV6DupN0IJdthF-hhjWdpBZY
 view_sheet_name: Cases
 date_colnames: ['status_change_date', 'update_date', 'date_joined', 'dem_dob']
+preferred_date_format: '%d-%b-%Y'

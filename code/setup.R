@@ -51,18 +51,20 @@ fix_list_cols = function(d) {
 #' @param d A `data.table`.
 #' @param date_colnames A character vector of column names in `d` that contain
 #'   dates.
+#' @param preferred_date_format A string, see [strptime()].
 #'
 #' @return A `data.table` in which the given columns have been converted to
 #'   class `IDate` using [data.table::as.IDate()].
-fix_dates = function(d, date_colnames) {
+fix_dates = function(d, date_colnames, preferred_date_format) {
   assert_data_table(d)
   assert_character(date_colnames)
 
   d = copy(d)
   date_zero = as.IDate('1899-12-30') # tested by trial and error in gsheets
-  date_formats = c('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y')
+  date_formats = c('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', '%d-%b-%Y')
   date_regs = c(
-    '^\\d{4}-\\d{2}-\\d{2}$', '^\\d{2}-\\d{2}-\\d{4}$', '^\\d{2}/\\d{2}/\\d{4}$')
+    '^\\d{4}-\\d{2}-\\d{2}$', '^\\d{2}-\\d{2}-\\d{4}$',
+    '^\\d{2}/\\d{2}/\\d{4}$', '^\\d{2}-[a-zA-Z]{3}-\\d{4}$')
 
   for (col in date_colnames) {
     if (is.character(d[[col]])) {
@@ -77,6 +79,9 @@ fix_dates = function(d, date_colnames) {
       }
     }
     set(d, j = col, value = as.IDate(d[[col]]))
+    # converts to charater, but this ensures proper display in the google sheets
+    # and valid comparison of old and new tables
+    set(d, j = col, value = format(d[[col]], format = preferred_date_format))
   }
 
   d[]
@@ -87,13 +92,14 @@ fix_dates = function(d, date_colnames) {
 #' @param file_id A `drive_id` corresponding to a Google Sheet.
 #' @param date_colnames A character vector of column names in the `data`
 #'   worksheet that contains dates.
+#' @param preferred_date_format A string, see [strptime()].
 #' @param sheets A character vector of names of worksheets in the Google Sheet
 #'   to be read in as `data.table`s.
 #'
 #' @return A named list of `data.table`s derived from
 #'   [googlesheets4::read_sheet()].
 get_tables = function(
-    file_id, date_colnames = NULL,
+    file_id, date_colnames = NULL, preferred_date_format = NULL,
     sheets = c(
       'groups', 'show_columns', 'hide_rows', 'sorting', 'viewers', 'data')) {
 
@@ -117,7 +123,7 @@ get_tables = function(
     # deal with messy dates
     tables$data = fix_list_cols(tables$data)
     if (!is.null(date_colnames)) {
-      tables$data = fix_dates(tables$data, date_colnames)
+      tables$data = fix_dates(tables$data, date_colnames, preferred_date_format)
     }
   }
   tables
@@ -229,7 +235,7 @@ get_validity_hide_rows = function(hide_rows, group_ids, dataset) {
   } else if (!setequal(colnames(hide_rows)[-(1:2)], group_ids)) {
     paste('Column names (from C column onward) of the `hide_rows` sheet',
           'do not match values of `group_id` in the `groups` sheet.')
-  } else if (anyDuplicated(hide_rows[, ..cols])) {
+  } else if (anyDuplicated(hide_rows[, .(column_name, unlist(column_value))])) {
     paste('The `column_name` and `column_value` columns of',
           'the `hide_rows` sheet contain duplicated values.')
   } else if (anyNA(hide_rows[, ..group_ids])) {
@@ -555,7 +561,7 @@ get_filtered_dataset = function(dataset, hide_rows, group_id) {
     if (hide_rows[[group_id]][i] == 'hide') {
       env = list(col_name = hide_rows$column_name[i])
       dataset_new = dataset_new[
-        col_name != hide_rows$column_value[i], env = env]
+        col_name != hide_rows$column_value[[i]], env = env]
     }
   }
   dataset_new
@@ -631,9 +637,11 @@ update_views = function(params) {
   cli_alert_success('Created file ids from file urls.')
 
   # get previous and current versions of tables
-  tables_old = get_tables(mirror_id, params$date_colnames)
+  tables_old = get_tables(
+    mirror_id, params$date_colnames, params$preferred_date_format)
   cli_alert_success('Fetched old tables from mirror file.')
-  tables_new = get_tables(main_id, params$date_colnames)
+  tables_new = get_tables(
+    main_id, params$date_colnames, params$preferred_date_format)
   cli_alert_success('Fetched new tables from main file.')
 
   # check validity of tables
