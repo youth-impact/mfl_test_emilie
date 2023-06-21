@@ -56,6 +56,7 @@ fix_list_cols = function(d) {
 #' @return A `data.table` in which the given columns have been converted to
 #'   class `IDate` using [data.table::as.IDate()].
 fix_dates = function(d, date_colnames, preferred_date_format) {
+  if (is.null(date_colnames)) return(d)
   assert_data_table(d)
   assert_character(date_colnames)
 
@@ -99,12 +100,12 @@ fix_dates = function(d, date_colnames, preferred_date_format) {
 #' @return A named list of `data.table`s derived from
 #'   [googlesheets4::read_sheet()].
 get_tables = function(
-    file_id, date_colnames = NULL, preferred_date_format = NULL,
+    file_id, preferred_date_format = NULL,
     sheets = c(
-      'groups', 'show_columns', 'hide_rows', 'sorting', 'viewers', 'data')) {
+      'groups', 'show_columns', 'hide_rows', 'sorting', 'viewers',
+      'date_columns', 'data')) {
 
   assert_class(file_id, 'drive_id')
-  assert_character(date_colnames, any.missing = FALSE, null.ok = TRUE)
   assert_character(sheets, any.missing = FALSE)
 
   tables = lapply(sheets, \(x) setDT(read_sheet(file_id, x)))
@@ -117,14 +118,18 @@ get_tables = function(
   # omit rows with missing values, which typically correspond to group headers
   tables$viewers = unique(na.omit(tables$viewers))
 
+  # using this table before checking its validity
+  if ('column_name' %in% colnames(tables$date_columns)) {
+    tables$date_columns[, column_name := as.character(column_name)]
+  }
+
   if (nrow(tables$data) > 0) {
     # omit rows lacking an id, typically for former facilitators
     tables$data = tables$data[!is.na(id)]
     # deal with messy dates
     tables$data = fix_list_cols(tables$data)
-    if (!is.null(date_colnames)) {
-      tables$data = fix_dates(tables$data, date_colnames, preferred_date_format)
-    }
+    tables$data = fix_dates(
+      tables$data, tables$date_columns$column_name, preferred_date_format)
   }
   tables
 }
@@ -143,9 +148,10 @@ compare_tables = function(x, y) {
 
   meta = data.table(
     table_name = c(
-      'groups', 'show_columns', 'hide_rows', 'sorting', 'viewers', 'data'),
-    ignore_row_order = c(TRUE, FALSE, FALSE, FALSE, TRUE, TRUE),
-    ignore_col_order = c(TRUE, FALSE, FALSE, TRUE, TRUE, TRUE))
+      'groups', 'show_columns', 'hide_rows', 'sorting', 'viewers',
+      'date_columns', 'data'),
+    ignore_row_order = c(TRUE, FALSE, FALSE, FALSE, TRUE, TRUE, TRUE),
+    ignore_col_order = c(TRUE, FALSE, FALSE, TRUE, TRUE, TRUE, TRUE))
 
   eq = sapply(seq_len(nrow(meta)), \(i) {
     isTRUE(all.equal(
@@ -251,16 +257,16 @@ get_validity_hide_rows = function(hide_rows, group_ids, dataset) {
           '`column_name` not present in the dataset.')
   } else {
     ans = 0
-    for (i in seq_len(nrow(hide_rows))) {
-      now = hide_rows[i]
-      if (!(now$column_value %in% dataset[[now$column_name]])) {
-        ans = glue(
-          'The `hide_rows` sheet contains `column_name` "{now$column_name}"',
-          ' and `column_value` "{now$column_value}", but this combination is',
-          ' not present in the dataset.')
-        break
-      }
-    }
+    # for (i in seq_len(nrow(hide_rows))) {
+    #   now = hide_rows[i]
+    #   if (!(now$column_value %in% dataset[[now$column_name]])) {
+    #     ans = glue(
+    #       'The `hide_rows` sheet contains `column_name` "{now$column_name}"',
+    #       ' and `column_value` "{now$column_value}", but this combination is',
+    #       ' not present in the dataset.')
+    #     break
+    #   }
+    # }
     ans
   }
   ans
@@ -330,6 +336,17 @@ get_validity_sorting = function(sorting, dataset) {
   ans
 }
 
+get_validity_date_columns = function(date_columns) {
+  assert_data_table(date_columns)
+  ans = if (!setequal(colnames(date_columns), 'column_name')) {
+    paste('The `date_columns` sheet does not only',
+          'have one column, named "column_name".')
+  } else {
+    0
+  }
+  ans
+}
+
 #' Determine whether the tables from a Google Sheet are valid
 #'
 #' This function individually checks the validity of multiple tables.
@@ -355,6 +372,9 @@ get_validity_tables = function(x) {
   if (ans != 0) return(ans)
 
   ans = get_validity_sorting(x$sorting, x$data)
+  if (ans != 0) return(ans)
+
+  ans = get_validity_date_columns(x$date_columns)
 }
 
 ########################################
@@ -637,11 +657,9 @@ update_views = function(params) {
   cli_alert_success('Created file ids from file urls.')
 
   # get previous and current versions of tables
-  tables_old = get_tables(
-    mirror_id, params$date_colnames, params$preferred_date_format)
+  tables_old = get_tables(mirror_id, params$preferred_date_format)
   cli_alert_success('Fetched old tables from mirror file.')
-  tables_new = get_tables(
-    main_id, params$date_colnames, params$preferred_date_format)
+  tables_new = get_tables(main_id, params$preferred_date_format)
   cli_alert_success('Fetched new tables from main file.')
 
   # check validity of tables
