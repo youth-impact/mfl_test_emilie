@@ -1,5 +1,4 @@
 main_file_url: https://docs.google.com/spreadsheets/d/1yeyxR85D4sg8v6TegPEuaPqVTQUvjIN2_VAzR16zJWI
 mirror_file_url: https://docs.google.com/spreadsheets/d/1VkyJJPM2fl6cWaiJW8aZ742QFPk9P1dH9AV2dnjcii8
 view_sheet_name: Cases
-date_colnames: ['fac_status_change_date', 'update_date', 'fac_date_joined', 'dem_dob']
 preferred_date_format: '%d-%b-%Y'
