@@ -175,11 +175,14 @@ get_validity_groups = function(groups) {
     'Column names of the `groups` sheet are not "group_id" and "file_url".'
   } else if (any(apply(groups, 2, uniqueN) != nrow(groups))) {
     'At least one column of the `groups` sheet contains duplicated values.'
-  } else if (!identical(
-    as_id(groups$file_url), drive_get(groups$file_url)$id)) {
-    # might just throw an error
+  } else if (!all(RCurl::url.exists(groups$file_url))) {
     paste('At least one row of the `file_url` column of the `groups`',
-          'sheet does not correspond to a valid spreadsheet file.')
+          'sheet does not correspond to a valid URL.')
+  # } else if (!identical(
+  #   as_id(groups$file_url), drive_get(groups$file_url)$id)) {
+  #   # might just throw an error
+  #   paste('At least one row of the `file_url` column of the `groups`',
+  #         'sheet does not correspond to a valid spreadsheet file.')
   } else {
     0
   }
@@ -336,11 +339,17 @@ get_validity_sorting = function(sorting, dataset) {
   ans
 }
 
+#' Determine whether the date_columns table is valid
+#'
+#' @param sorting A `data.table` from the `date_columns` worksheet of the main
+#'   Google Sheet.
+#'
+#' @return 0 if valid, a string otherwise.
 get_validity_date_columns = function(date_columns) {
   assert_data_table(date_columns)
   ans = if (!setequal(colnames(date_columns), 'column_name')) {
-    paste('The `date_columns` sheet does not only',
-          'have one column, named "column_name".')
+    paste('The `date_columns` sheet does not have',
+          'only one column, named "column_name".')
   } else {
     0
   }
