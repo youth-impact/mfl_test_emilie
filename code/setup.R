@@ -175,9 +175,9 @@ get_validity_groups = function(groups) {
     'Column names of the `groups` sheet are not "group_id" and "file_url".'
   } else if (any(apply(groups, 2, uniqueN) != nrow(groups))) {
     'At least one column of the `groups` sheet contains duplicated values.'
-  } else if (!all(RCurl::url.exists(groups$file_url))) {
+  } else if (anyNA(as_sheets_id(groups$file_url))) {
     paste('At least one row of the `file_url` column of the `groups`',
-          'sheet does not correspond to a valid URL.')
+          'sheet does not correspond to a valid spreadsheet file.')
   # } else if (!identical(
   #   as_id(groups$file_url), drive_get(groups$file_url)$id)) {
   #   # might just throw an error
