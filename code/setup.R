@@ -179,7 +179,8 @@ get_validity_groups = function(groups) {
   #   paste('At least one row of the `file_url` column of the `groups`',
   #         'sheet does not correspond to a valid URL.')
   } else {
-    ans_tmp = tryCatch(anyNA(as_sheets_id(groups$file_url)), error = \(e) e)
+    ans_tmp = tryCatch(
+      anyNA(sapply(groups$file_url, as_sheets_id)), error = \(e) e)
     if (inherits(ans_tmp, 'error') || isTRUE(ans_tmp)) {
       paste('At least one row of the `file_url` column of the `groups`',
             'sheet does not correspond to a valid spreadsheet file.')
