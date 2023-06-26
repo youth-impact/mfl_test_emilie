@@ -329,7 +329,7 @@ get_validity_sorting = function(sorting, dataset) {
 
     if (any(n > 1)) {
       paste('In the `sorting` sheet, "*ascending*" or "*descending*"',
-            'is not the only `column_value` for a given `column_name`.')
+            'occurs more than once for a given `column_name`.')
     } else if (
       nrow(sort_plain) > 0 && nrow(fsetdiff(sort_plain, data_plain)) > 0) {
       paste('The `sorting` sheet contains combinations of `column_name`',
@@ -554,7 +554,18 @@ sort_dataset = function(dataset, sorting) {
   cols_tmp = unique(sorting[!(column_value %in% special)]$column_name)
   for (col in cols_tmp) {
     levs_tmp = sorting[column_name == col]$column_value
-    levs = c(levs_tmp, setdiff(unique(dataset[[col]]), levs_tmp))
+    n = length(levs_tmp)
+    levs_main = sort(
+      setdiff(unique(dataset[[col]]), levs_tmp),
+      decreasing = '*descending*' %in% levs_tmp)
+    idx = which(levs_tmp %in% special)
+    levs = if (length(idx) > 0L) {
+      levs_before = if (idx == 1L) NULL else levs_tmp[1:(idx - 1)]
+      levs_after = if (idx == n) NULL else levs_tmp[(idx + 1):n]
+      c(levs_before, levs_main, levs_after)
+    } else {
+      c(levs_tmp, setdiff(unique(dataset[[col]]), levs_tmp))
+    }
     dataset[, y := factor(y, levs), env = list(y = col)]
   }
 
