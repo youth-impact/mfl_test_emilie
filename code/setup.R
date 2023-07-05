@@ -330,10 +330,10 @@ get_validity_sorting = function(sorting, dataset) {
     if (any(n > 1)) {
       paste('In the `sorting` sheet, "*ascending*" or "*descending*"',
             'occurs more than once for a given `column_name`.')
-    } else if (
-      nrow(sort_plain) > 0 && nrow(fsetdiff(sort_plain, data_plain)) > 0) {
-      paste('The `sorting` sheet contains combinations of `column_name`',
-            'and `column_value` not present in the dataset.')
+    # } else if (
+    #   nrow(sort_plain) > 0 && nrow(fsetdiff(sort_plain, data_plain)) > 0) {
+    #   paste('The `sorting` sheet contains combinations of `column_name`',
+    #         'and `column_value` not present in the dataset.')
     } else {
       0
     }
