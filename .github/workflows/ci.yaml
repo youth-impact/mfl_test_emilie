@@ -1,3 +1,8 @@
+# CAVEAT: GitHub Actions can only the version of this file that is on the main
+# branch, even if the workflow run is triggered by the testing environment.
+# It will, however, run the code from the correct branch, as indicated below.
+# production environment -> main branch
+# testing environment -> testing branch
 name: ci
 
 on:
