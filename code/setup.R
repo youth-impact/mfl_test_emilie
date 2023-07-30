@@ -6,9 +6,6 @@ library('googledrive')
 library('googlesheets4')
 library('yaml')
 
-# yaml file used by [update_views()]
-params = read_yaml(file.path('params', 'params.yaml'))
-
 ########################################
 
 if (Sys.getenv('GOOGLE_TOKEN') == '') { # not on GitHub
@@ -16,8 +13,17 @@ if (Sys.getenv('GOOGLE_TOKEN') == '') { # not on GitHub
 } else { # on GitHub Actions runner
   drive_auth(path = Sys.getenv('GOOGLE_TOKEN'))
 }
-
 gs4_auth(token = drive_token())
+
+########################################
+
+# used by [update_views()]
+get_params = function() {
+  params_raw = read_yaml(file.path('params', 'params.yaml'))
+  envir = Sys.getenv('ENVIRONMENT')
+  if (envir == '') envir = 'testing'
+  params = params_raw[[envir]]
+}
 
 ########################################
 

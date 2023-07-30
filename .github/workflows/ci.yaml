@@ -1,3 +1,8 @@
+# CAVEAT: GitHub Actions can only the version of this file that is on the main
+# branch, even if the workflow run is triggered by the testing environment.
+# It will, however, run the code from the correct branch, as indicated below.
+# production environment -> main branch
+# testing environment -> testing branch
 name: ci
 
 on:
@@ -14,10 +19,13 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       GOOGLE_TOKEN: ${{ secrets.GOOGLE_TOKEN }}
-      SCTO_AUTH: ${{ secrets.SCTO_AUTH }}
+      # SCTO_AUTH: ${{ secrets.SCTO_AUTH }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      ENVIRONMENT: ${{ github.event.client_payload.environment }}
     steps:
       - uses: actions/checkout@v3
+        with:
+          ref: ${{ env.ENVIRONMENT == 'production' && 'main' || 'testing' }}
       - uses: r-lib/actions/setup-r@v2
         with:
           use-public-rspm: true
@@ -30,13 +38,13 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: Youth Impact ${{ github.event.repository.name }}
+          subject: Youth Impact ${{ github.event.repository.name }} ${{ env.ENVIRONMENT }}
           to: ${{ env.EMAIL_TO }}
           from: Youth Impact Automation <youthimpactautomation@gmail.com>
           body: |
             Hello there!
 
-            GitHub Actions ran and gave the following message:
+            GitHub Actions ran in the ${{ env.ENVIRONMENT }} environment and gave the following message:
 
             ${{ env.MESSAGE }}
 

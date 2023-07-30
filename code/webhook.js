@@ -32,12 +32,13 @@ function get_params(ss, sheet_name, key_idx = 0, val_idx = 1) {
 function at_change(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var gh = get_params(ss, 'github');
+  var client_payload = {'environment': gh['environment']};
 
   Logger.log(e.authMode);
   Logger.log(e.changeType);
   Logger.log(e.user.getEmail());
 
   if (gh['enabled'] == 1) {
-    dispatch(gh['repo_url'], gh['pat_url']);
+    dispatch(gh['repo_url'], gh['pat_url'], client_payload);
   }
 }
