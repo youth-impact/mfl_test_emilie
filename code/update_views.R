@@ -1,7 +1,5 @@
 source(file.path('code', 'setup.R'))
 
-# TODO: facilitator_database_main gsheet triggers gh actions in prod
-
 msg = tryCatch({
   params = get_params()
   update_views(params)
