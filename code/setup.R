@@ -21,7 +21,7 @@ gs4_auth(token = drive_token())
 get_params = function() {
   params_raw = read_yaml(file.path('params', 'params.yaml'))
   envir = Sys.getenv('ENVIRONMENT')
-  if (envir == '') envir = 'testing'
+  if (envir != 'production') envir = 'testing'
   params = params_raw[[envir]]
 }
 
