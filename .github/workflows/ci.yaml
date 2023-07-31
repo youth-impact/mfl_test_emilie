@@ -2,7 +2,15 @@
 # testing environment -> testing branch
 name: ci
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        type: string
+        required: true
+      environment:
+        type: string
+        required: true
 
 concurrency:
   group: ${{ github.ref }}
