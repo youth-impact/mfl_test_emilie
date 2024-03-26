@@ -503,17 +503,18 @@ drive_get_background = function(file_id, sheet, range, nonwhite = TRUE) {
 #'   and `blue`.
 #'
 #' @return The result of [googlesheets4::request_make()], invisibly.
-drive_set_background = function(file_id, background) {
+drive_set_background = function(file_id, background, sheet) {
   assert_class(file_id, 'drive_id')
   assert_data_table(background)
 
   # only for setting one color per entire column
-  gfile = drive_get(file_id)
+  gfile = gs4_get(file_id)
   cli_alert_success('Setting background colors for "{gfile$name}".')
 
   bod_base = '{
   "repeatCell": {
     "range": {
+      "sheetId": (sheet_id),
       "startColumnIndex": (start_col),
       "endColumnIndex": (start_col + 1)
     },
@@ -531,6 +532,7 @@ drive_set_background = function(file_id, background) {
   }'
 
   background = copy(background)
+  background[, sheet_id := gfile$sheets$id[gfile$sheets$name == sheet]]
   background[, bod := glue(bod_base, .envir = .SD, .open = '(', .close = ')')]
   bod = sprintf('{"requests": [%s]}', paste(background$bod, collapse = ',\n'))
 
@@ -652,7 +654,7 @@ set_views = function(x, bg, prefix, sheet) {
     # update formatting
     bg_now = bg[column_name %in% cols_now]
     bg_now[, start_col := match(column_name, cols_now) - 1L]
-    drive_set_background(file_id, bg_now)
+    drive_set_background(file_id, bg_now, sheet)
 
     # update permissions
     viewers_now = x$viewers[group_id == group_id_now]
