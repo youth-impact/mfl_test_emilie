@@ -501,6 +501,7 @@ drive_get_background = function(file_id, sheet, range, nonwhite = TRUE) {
 #' @param file_id A `drive_id` corresponding to a Drive file.
 #' @param background A `data.table` having columns `start_col`, `red`, `green`,
 #'   and `blue`.
+#' @param sheet A string indicating the worksheet name in the Google Sheet.
 #'
 #' @return The result of [googlesheets4::request_make()], invisibly.
 drive_set_background = function(file_id, background, sheet) {
