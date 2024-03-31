@@ -510,7 +510,7 @@ drive_share_remove = function(file_id, user_ids) {
 #'   non-white background colors.
 #'
 #' @return A `data.table` having one row per cell.
-drive_get_background = function(file_id, sheet, range, nonwhite = TRUE) {
+sheets_get_background = function(file_id, sheet, range, nonwhite = TRUE) {
   assert_class(file_id, 'drive_id')
   assert_string(sheet)
   assert_flag(nonwhite)
@@ -809,7 +809,7 @@ update_views = function(params) {
   cli_alert_success('Compared old and new tables.')
 
   # update the views
-  bg = drive_get_background(main_id, 'show_columns', 'A2:A')
+  bg = sheets_get_background(main_id, 'show_columns', 'A2:A')
   cli_alert_success('Got background colors.')
   view_prefix = get_view_prefix(main_id)
   cli_alert_success('Got prefix for view files.')
