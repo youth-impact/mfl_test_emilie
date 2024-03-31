@@ -109,7 +109,7 @@ get_tables = function(
     file_id, preferred_date_format = NULL,
     sheets = c(
       'groups', 'show_columns', 'hide_rows', 'sorting', 'viewers',
-      'date_columns', 'data')) {
+      'date_columns', 'column_widths', 'data')) {
 
   assert_class(file_id, 'drive_id')
   assert_character(sheets, any.missing = FALSE)
@@ -155,9 +155,9 @@ compare_tables = function(x, y) {
   meta = data.table(
     table_name = c(
       'groups', 'show_columns', 'hide_rows', 'sorting', 'viewers',
-      'date_columns', 'data'),
-    ignore_row_order = c(TRUE, FALSE, FALSE, FALSE, TRUE, TRUE, TRUE),
-    ignore_col_order = c(TRUE, FALSE, FALSE, TRUE, TRUE, TRUE, TRUE))
+      'date_columns', 'column_widths', 'data'),
+    ignore_row_order = c(TRUE, FALSE, FALSE, FALSE, TRUE, TRUE, TRUE, TRUE),
+    ignore_col_order = c(TRUE, FALSE, FALSE, TRUE, TRUE, TRUE, TRUE, TRUE))
 
   eq = sapply(seq_len(nrow(meta)), \(i) {
     isTRUE(all.equal(
@@ -349,8 +349,8 @@ get_validity_sorting = function(sorting, dataset) {
 
 #' Determine whether the date_columns table is valid
 #'
-#' @param sorting A `data.table` from the `date_columns` worksheet of the main
-#'   Google Sheet.
+#' @param date_columns A `data.table` from the `date_columns` worksheet of the
+#'   main Google Sheet.
 #'
 #' @return 0 if valid, a string otherwise.
 get_validity_date_columns = function(date_columns) {
@@ -358,6 +358,37 @@ get_validity_date_columns = function(date_columns) {
   ans = if (!setequal(colnames(date_columns), 'column_name')) {
     paste('The `date_columns` sheet does not have',
           'only one column, named "column_name".')
+  } else {
+    0
+  }
+  ans
+}
+
+#' Determine whether the column_widths table is valid
+#'
+#' @param column_widths A `data.table` from the `column_widths` worksheet of the
+#'   main Google Sheet.
+#' @param data_cols A vector of columns in the `data` table in the main Google
+#'   Sheet.
+#'
+#' @return 0 if valid, a string otherwise.
+get_validity_column_widths = function(column_widths, data_cols) {
+  assert_data_table(column_widths)
+  cols = c('column_name', 'column_width')
+
+  test_widths = \(w) {
+    test_integerish(w, lower = 10, upper = 1000, any.missing = FALSE)
+  }
+
+  ans = if (!setequal(colnames(column_widths), cols)) {
+    paste('The `column_widths` sheet does not have exactly two',
+          'columns, named "column_name" and "column_width".')
+  } else if (!all(column_widths$column_name %in% data_cols)) {
+    paste('The `column_name` column of the `column_widths` sheet',
+          'contains values that are not column names of the dataset.')
+  } else if (!test_widths(column_widths$column_width)) {
+    paste('The `column_width` column of the `column_widths` sheet',
+          'contains values that are not integers between 10 and 1000.')
   } else {
     0
   }
@@ -392,6 +423,9 @@ get_validity_tables = function(x) {
   if (ans != 0) return(ans)
 
   ans = get_validity_date_columns(x$date_columns)
+  if (ans != 0) return(ans)
+
+  ans = get_validity_column_widths(x$column_widths, data_cols)
 }
 
 ########################################
@@ -504,14 +538,70 @@ drive_get_background = function(file_id, sheet, range, nonwhite = TRUE) {
 #' @param sheet A string indicating the worksheet name in the Google Sheet.
 #'
 #' @return The result of [googlesheets4::request_make()], invisibly.
-drive_set_background = function(file_id, background, sheet) {
+# drive_set_background = function(file_id, background, sheet) {
+#   assert_class(file_id, 'drive_id')
+#   assert_data_table(background)
+#
+#   gfile = gs4_get(file_id)
+#   cli_alert_success('Setting background colors for "{gfile$name}".')
+#
+#   # only for setting one color per entire column
+#   bod_base = '{
+#   "repeatCell": {
+#     "range": {
+#       "sheetId": (sheet_id),
+#       "startColumnIndex": (start_col),
+#       "endColumnIndex": (start_col + 1)
+#     },
+#     "cell": {
+#       "userEnteredFormat": {
+#         "backgroundColor": {
+#           "red": (red),
+#           "green": (green),
+#           "blue": (blue)
+#         }
+#       }
+#     },
+#     "fields": "userEnteredFormat.backgroundColor"
+#     }
+#   }'
+#
+#   background = copy(background)
+#   background[, sheet_id := gfile$sheets$id[gfile$sheets$name == sheet]]
+#   background[, bod := glue(bod_base, .envir = .SD, .open = '(', .close = ')')]
+#   bod = sprintf('{"requests": [%s]}', paste(background$bod, collapse = ',\n'))
+#
+#   request = googlesheets4::request_generate(
+#     'sheets.spreadsheets.batchUpdate', list(spreadsheetId = file_id))
+#   request$body = bod
+#   result = googlesheets4::request_make(request)
+#   invisible(result)
+# }
+
+########################################
+
+sheets_request = function(file_id, sheet_id, d, bod_base) {
+  d = copy(d)
+  set(d, j = 'sheet_id', value = sheet_id)
+  d[, bod := glue(bod_base, .envir = .SD, .open = '(', .close = ')')]
+  bod = sprintf('{"requests": [%s]}', paste(d$bod, collapse = ',\n'))
+
+  request = googlesheets4::request_generate(
+    'sheets.spreadsheets.batchUpdate', list(spreadsheetId = file_id))
+  request$body = bod
+  result = googlesheets4::request_make(request)
+  invisible(result)
+}
+
+sheets_set_formatting = function(file_id, sheet, background, column_widths) {
   assert_class(file_id, 'drive_id')
   assert_data_table(background)
+  assert_data_table(column_widths)
+
+  gfile = gs4_get(file_id)
+  sheet_id = gfile$sheets$id[gfile$sheets$name == sheet]
 
   # only for setting one color per entire column
-  gfile = gs4_get(file_id)
-  cli_alert_success('Setting background colors for "{gfile$name}".')
-
   bod_base = '{
   "repeatCell": {
     "range": {
@@ -531,17 +621,25 @@ drive_set_background = function(file_id, background, sheet) {
     "fields": "userEnteredFormat.backgroundColor"
     }
   }'
+  cli_alert_success('Setting backgrounds for "{gfile$name}".')
+  sheets_request(file_id, sheet_id, background, bod_base)
 
-  background = copy(background)
-  background[, sheet_id := gfile$sheets$id[gfile$sheets$name == sheet]]
-  background[, bod := glue(bod_base, .envir = .SD, .open = '(', .close = ')')]
-  bod = sprintf('{"requests": [%s]}', paste(background$bod, collapse = ',\n'))
-
-  request = googlesheets4::request_generate(
-    'sheets.spreadsheets.batchUpdate', list(spreadsheetId = file_id))
-  request$body = bod
-  result = googlesheets4::request_make(request)
-  invisible(result)
+  bod_base = '{
+  "updateDimensionProperties": {
+    "range": {
+      "sheetId": (sheet_id),
+      "dimension": "COLUMNS",
+      "startIndex": (start_col),
+      "endIndex": (start_col + 1)
+    },
+    "properties": {
+      "pixelSize": (column_width)
+    },
+    "fields": "pixelSize"
+    }
+  }'
+  cli_alert_success('Setting column widths for "{gfile$name}".')
+  sheets_request(file_id, sheet_id, column_widths, bod_base)
 }
 
 ########################################
@@ -634,6 +732,7 @@ set_views = function(x, bg, prefix, sheet) {
 
   dataset = sort_dataset(x$data, x$sorting)
   bg = copy(bg)[, column_name := x$show_columns$column_name[row - 1L]]
+  cw = copy(x$column_widths)
 
   result = sapply(seq_len(nrow(x$groups)), \(i) {
     file_id = as_id(x$groups$file_url[i])
@@ -655,7 +754,10 @@ set_views = function(x, bg, prefix, sheet) {
     # update formatting
     bg_now = bg[column_name %in% cols_now]
     bg_now[, start_col := match(column_name, cols_now) - 1L]
-    drive_set_background(file_id, bg_now, sheet)
+    cw_now = cw[column_name %in% cols_now]
+    cw_now[, start_col := match(column_name, cols_now) - 1L]
+    sheets_set_formatting(file_id, sheet, bg_now, cw_now)
+    # drive_set_background(file_id, bg_now, sheet)
 
     # update permissions
     viewers_now = x$viewers[group_id == group_id_now]
