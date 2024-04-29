@@ -114,7 +114,7 @@ get_tables = function(
   assert_class(file_id, 'drive_id')
   assert_character(sheets, any.missing = FALSE)
 
-  tables = lapply(sheets, \(x) setDT(read_sheet(file_id, x)))
+  tables = lapply(sheets, \(x) setDT(read_sheet(file_id, x, guess_max = Inf)))
   names(tables) = sheets
 
   if (nrow(tables$show_columns) > 0) {
