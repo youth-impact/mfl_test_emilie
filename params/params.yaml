@@ -4,7 +4,7 @@ production:
   view_sheet_name: Cases
   preferred_date_format: '%d-%b-%Y'
 testing:
-  main_file_url: https://docs.google.com/spreadsheets/d/1yeyxR85D4sg8v6TegPEuaPqVTQUvjIN2_VAzR16zJWI
-  mirror_file_url: https://docs.google.com/spreadsheets/d/1VkyJJPM2fl6cWaiJW8aZ742QFPk9P1dH9AV2dnjcii8
+  main_file_url: https://docs.google.com/spreadsheets/d/1O8VUGZGM8TmqZPFXsLCHSmg0gKjd1exGp9La_5olnxQ
+  mirror_file_url: https://docs.google.com/spreadsheets/d/1PblLcW6NJZ8qke7-aBlnuoFJDi8ZTc6sjbH7quBAMMo
   view_sheet_name: Cases
   preferred_date_format: '%d-%b-%Y'
